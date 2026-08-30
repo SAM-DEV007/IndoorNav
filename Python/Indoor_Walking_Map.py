@@ -1,3 +1,5 @@
+import shutil
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +7,10 @@ import scipy.signal as signal
 
 from scipy.integrate import cumulative_trapezoid
 from pathlib import Path
+
+def input_info(source, destination):
+    for file in source.rglob("*.txt"):
+        shutil.copy2(file, destination / file.name)
 
 def calculate_gravity(g_interp_x, g_interp_y, g_interp_z):
     g = np.array([g_interp_x, g_interp_y, g_interp_z], dtype=float)
@@ -318,18 +324,21 @@ def save_logs(pdr_df, landmarks_df, turns_df, output_data_save):
     turns_df.to_csv(output_data_save / f"pdr_turns_log.csv", index=False)
 
 if __name__ == '__main__':
-    # Load Data
+    # Folders
     parent_folder_path = Path(__file__).parent.resolve()
     dataset_folder = parent_folder_path / "SensorLogger"
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-08-30_01-03-47"
+    input_data_name = "2026-08-30_00-23-59"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
     output_data_save.mkdir(parents=True, exist_ok=True)
 
+    input_info(input_data_path, output_data_save)  # Copy input info files (.txt) to output folder
+
+    # Load Data
     acc = pd.read_csv(input_data_path / "Accelerometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
     gyro = pd.read_csv(input_data_path / "Gyroscope.csv").sort_values('seconds_elapsed').reset_index(drop=True)
     mag = pd.read_csv(input_data_path / "Magnetometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
@@ -376,7 +385,6 @@ if __name__ == '__main__':
 
     # Calculate tilt
     mag_heading = calculate_mag_heading(mag_interp_x, mag_interp_y, mag_interp_z, g)
-    print(f"Initial Magnetic Heading: {mag_heading[0]}")
 
     # VERTICAL FALSE STEP FILTERING (Cadence & Rhythm Verification)
     peaks, step_times, acc_mag = walk_cadence_verification(acc, g, dt_sampling, t_acc)
@@ -418,6 +426,7 @@ if __name__ == '__main__':
     save_logs(pdr_df, landmarks_df, turns_df, output_data_save)
 
     # Print Results
+    print(f"Initial Magnetic Heading: {mag_heading[0]}")
     print(f"Initial Magnetic Heading (step): {step_mag_heading[0]}\n")
 
     print("DISTANCE TRAVELLED WITH SECONDS ELAPSED")
