@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
+
 from scipy.integrate import cumulative_trapezoid
+from pathlib import Path
 
 def calculate_gravity(g_interp_x, g_interp_y, g_interp_z):
     g = np.array([g_interp_x, g_interp_y, g_interp_z], dtype=float)
@@ -283,7 +285,7 @@ def create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_
 
     return turns_df, round(final_straight_len, 2)
 
-def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_name):
+def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_name, output_data_save):
     plt.figure(figsize=(10, 8))
     plt.plot(x_pos, y_pos, linestyle='--', color='gray', zorder=1, label='Trajectory')
 
@@ -307,20 +309,31 @@ def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'{save_name}.png', dpi=300)
+    plt.savefig(output_data_save / f'{save_name}.png', dpi=300)
     plt.close()
 
-def save_logs(pdr_df, landmarks_df, turns_df):
-    pdr_df.to_csv("pdr_distance_log.csv", index=False)
-    landmarks_df.to_csv("pdr_landmarks_log.csv", index=False)
-    turns_df.to_csv("pdr_turns_log.csv", index=False)
+def save_logs(pdr_df, landmarks_df, turns_df, output_data_save):
+    pdr_df.to_csv(output_data_save / f"pdr_distance_log.csv", index=False)
+    landmarks_df.to_csv(output_data_save / f"pdr_landmarks_log.csv", index=False)
+    turns_df.to_csv(output_data_save / f"pdr_turns_log.csv", index=False)
 
 if __name__ == '__main__':
     # Load Data
-    acc = pd.read_csv("Accelerometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
-    gyro = pd.read_csv("Gyroscope.csv").sort_values('seconds_elapsed').reset_index(drop=True)
-    mag = pd.read_csv("Magnetometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
-    grav = pd.read_csv("Gravity.csv").sort_values('seconds_elapsed').reset_index(drop=True)
+    parent_folder_path = Path(__file__).parent.resolve()
+    dataset_folder = parent_folder_path / "SensorLogger"
+
+    save_folder = parent_folder_path / "Output"
+
+    input_data_name = "2026-08-30_01-03-47"
+    input_data_path = dataset_folder / input_data_name
+
+    output_data_save = save_folder / input_data_name
+    output_data_save.mkdir(parents=True, exist_ok=True)
+
+    acc = pd.read_csv(input_data_path / "Accelerometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
+    gyro = pd.read_csv(input_data_path / "Gyroscope.csv").sort_values('seconds_elapsed').reset_index(drop=True)
+    mag = pd.read_csv(input_data_path / "Magnetometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
+    grav = pd.read_csv(input_data_path / "Gravity.csv").sort_values('seconds_elapsed').reset_index(drop=True)
 
     # Config
     gyro_threshold = 0.12 # rad/s threshold
@@ -377,7 +390,6 @@ if __name__ == '__main__':
     step_heading_change_deg = np.diff(step_heading_unwrapped_deg, prepend=step_heading_unwrapped_deg[0]) # Per-step heading change from gyro
 
     step_mag_heading = mag_heading[peaks] # Peaks magnetic heading
-    print(f"Initial Magnetic Heading (step): {step_mag_heading[0]}\n")
 
     # Trajectory & Stride Calculation
     x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos)
@@ -393,19 +405,21 @@ if __name__ == '__main__':
     turns_df, final_straight_len = create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_deg, cum_distance, step_times, step_heading_deg)
 
     # Plot Walking Map with Landmarks
-    plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark', 'pdr_map')
+    plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark', 'pdr_map', output_data_save)
 
     # Plot rotated magnetic map
     theta = np.deg2rad(90.0 - step_mag_heading[0])
     x_rot = x_pos * np.cos(theta) - y_pos * np.sin(theta)
     y_rot = x_pos * np.sin(theta) + y_pos * np.cos(theta)
 
-    plot_walking_map(x_rot, y_rot, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark - Aligned with Magnetic North', 'pdr_map_magnetic')
+    plot_walking_map(x_rot, y_rot, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark - Aligned with Magnetic North', 'pdr_map_magnetic', output_data_save)
 
     # Save logs
-    save_logs(pdr_df, landmarks_df, turns_df)
+    save_logs(pdr_df, landmarks_df, turns_df, output_data_save)
 
     # Print Results
+    print(f"Initial Magnetic Heading (step): {step_mag_heading[0]}\n")
+
     print("DISTANCE TRAVELLED WITH SECONDS ELAPSED")
     print(pdr_df.to_string(index=False))
 
