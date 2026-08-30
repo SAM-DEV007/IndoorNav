@@ -1,0 +1,2 @@
+version,device name,recording epoch time,recording time,recording timezone,platform,appVersion,device id,sensors,sampleRateMs,standardisation,platform version
+3,SM-A146B,1787729873779,2026-08-26_07-37-53,Asia/Kolkata,android,1.64,371be276-d061-43f0-b4ef-1c80457c3f18,Accelerometer|Camera|Pedometer|Activity|Annotation|TotalAcceleration|AccelerometerUncalibrated,10|10000|10|0||10|10,false,35
