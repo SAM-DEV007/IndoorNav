@@ -93,7 +93,7 @@ def walk_cadence_verification(acc, g, dt_sampling, t_acc):
     
     return peaks, t_acc[peaks], acc_mag
 
-def weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos):
+def weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold):
     # Only valid for walking cadence
     strides = []
     step_durations = []
@@ -112,12 +112,14 @@ def weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuat
         
         base_stride = K * ((a_max - a_min) ** 0.25)
         stride = base_stride
-        
-        # Turn-rate attenuation factor (Decays stride length during sharp turns)
+
         if use_turn_attenuation is True:
             turn_rate = np.abs(gz_interp[idx])
-            turn_attenuation = np.exp(-1.8 * turn_rate)
-            stride *= turn_attenuation
+
+            if turn_rate > turn_threshold:
+                effective_turn_rate = turn_rate - turn_threshold
+                turn_attenuation = np.exp(-1.8 * effective_turn_rate)
+                stride *= turn_attenuation
         
         strides.append(stride)
         step_durations.append(dt)
@@ -350,7 +352,8 @@ if __name__ == '__main__':
 
     K = 0.55  # Weinberg constant
     x_pos, y_pos = [0.0], [0.0]
-    use_turn_attenuation = False
+    use_turn_attenuation = True
+    turn_threshold = 0.6 # rad/s
 
     gyro_turn_threshold = 0.15 # rad/s
     min_turn_angle_deg = 15.0
@@ -401,7 +404,7 @@ if __name__ == '__main__':
     step_mag_heading = mag_heading[peaks] # Peaks magnetic heading
 
     # Trajectory & Stride Calculation
-    x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos)
+    x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold)
     pdr_df = create_distance_logs(peaks, step_times, strides, step_speeds, cum_distance, x_pos, y_pos, step_mag_heading, step_heading_deg, step_heading_unwrapped_deg, step_heading_change_deg, gz_interp) # Create distance logs
 
     # Extract Low-Speed (< 0.3 m/s) Landmark Events
