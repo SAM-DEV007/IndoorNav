@@ -52,11 +52,12 @@ def calculate_raw_peaks(acc, g, dt_sampling):
     acc_mag = np.linalg.norm(acc_linear, axis=0)
 
     # Low-pass filter magnitude
-    b, a = signal.butter(4, 2.5 / (0.5 * (1.0 / dt_sampling)), btype='low')
-    acc_mag_filt = signal.filtfilt(b, a, acc_mag)
+    b, a_filter = signal.butter(4, 2.5 / (0.5 * (1.0 / dt_sampling)), btype='low')
+    acc_mag_filt = signal.filtfilt(b, a_filter, acc_mag)
 
     # Find raw candidate peaks (Threshold & Minimum distance)
-    raw_peaks, _ = signal.find_peaks(acc_mag_filt, height=np.mean(acc_mag_filt) + 0.35, distance=int(0.35 / dt_sampling))
+    # raw_peaks, _ = signal.find_peaks(acc_mag_filt, height=np.mean(acc_mag_filt) + 0.35, distance=int(0.35 / dt_sampling))
+    raw_peaks, _ = signal.find_peaks(acc_mag_filt, prominence=0.2, distance=int(0.35 / dt_sampling))
 
     return raw_peaks, acc_mag
 
@@ -68,7 +69,7 @@ def calculate_yaw_gyro(gz_interp, gyro_threshold, t_acc):
 
 def walk_cadence_verification(acc, g, dt_sampling, t_acc):
     # Human walking cadence is 1.2 Hz - 2.5 Hz (step interval ~0.35s to 1.3s). 
-    # Isolated vertical movements (lifting phone, drops, elevator jolts) lack rhythmic step neighbours.
+
     valid_peaks = []
     raw_peaks, acc_mag = calculate_raw_peaks(acc, g, dt_sampling)
 
@@ -330,7 +331,7 @@ if __name__ == '__main__':
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-08-30_00-23-59"
+    input_data_name = "2026-08-31_09-26-16"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
