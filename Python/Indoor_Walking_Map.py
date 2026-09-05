@@ -137,6 +137,55 @@ def weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuat
 
     return x_pos, y_pos, strides, step_durations, step_speeds, cum_distance
 
+def cadence_adaptive_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold, step_yaws_unwrapped):
+    strides = []
+    step_durations = []
+
+    for i in range(len(peaks)):
+        idx = peaks[i]
+        if i == 0:
+            dt = step_times[1] - step_times[0] if len(peaks) > 1 else 0.55
+        else:
+            dt = step_times[i] - step_times[i-1]
+        
+        # 0.35s to 1.3s cadence range
+        # 0.35s - 2.86 Hz for running/sprinting
+        # 1.3s - 0.77 Hz for slow walking
+        dt = np.clip(dt, 0.35, 1.3) 
+        cadence_hz = 1.0 / dt
+
+        w_start = max(0, idx - 10)
+        w_end = min(len(acc_mag), idx + 10)
+        a_max = np.max(acc_mag[w_start:w_end])
+        a_min = np.min(acc_mag[w_start:w_end])
+
+        cadence_scaling = np.sqrt(cadence_hz / 1.8)
+        base_stride = K * cadence_scaling * ((a_max - a_min) ** 0.25)
+        stride = base_stride
+
+        if use_turn_attenuation:
+            turn_rate = np.abs(gz_interp[idx])
+            if turn_rate > turn_threshold:
+                effective_turn_rate = turn_rate - turn_threshold
+                turn_attenuation = np.exp(-1.2 * effective_turn_rate)
+                stride *= turn_attenuation
+        
+        strides.append(stride)
+        step_durations.append(dt)
+        
+        heading = step_yaws_unwrapped[i]
+        x_pos.append(x_pos[-1] + stride * np.cos(heading))
+        y_pos.append(y_pos[-1] + stride * np.sin(heading))
+
+    x_pos = np.array(x_pos)
+    y_pos = np.array(y_pos)
+    strides = np.array(strides)
+    step_durations = np.array(step_durations)
+    step_speeds = strides / step_durations
+    cum_distance = np.cumsum(strides)
+
+    return x_pos, y_pos, strides, step_durations, step_speeds, cum_distance
+
 def create_distance_logs(peaks, step_times, strides, step_speeds, cum_distance, x_pos, y_pos, step_mag_heading, step_heading_deg, step_heading_unwrapped_deg, step_heading_change_deg, gz_interp):
     pdr_df = pd.DataFrame({
         'Step': np.arange(1, len(peaks) + 1),
@@ -151,7 +200,8 @@ def create_distance_logs(peaks, step_times, strides, step_speeds, cum_distance, 
         'Gyro_Heading_Unwrapped_deg': np.round(step_heading_unwrapped_deg, 1),
         'Heading_Change_deg': np.round(step_heading_change_deg, 1),
         'Gyro_Rate_rad_s': np.round(gz_interp[peaks], 3),
-        'Weinberg_Constant_K': np.round(np.full(len(peaks), K), 3)
+        # 'Weinberg_Constant_K': np.round(np.full(len(peaks), K_weinberg), 3),
+        'Cadence_Adaptive_Constant_K': np.round(np.full(len(peaks), K_cadence_adaptive), 3)
     })
 
     return pdr_df
@@ -334,7 +384,7 @@ if __name__ == '__main__':
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-09-05_22-43-58"
+    input_data_name = "2026-09-05_23-14-18"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
@@ -351,7 +401,8 @@ if __name__ == '__main__':
     # Config
     gyro_threshold = 0.12 # rad/s threshold
 
-    K = 0.4442  # Weinberg constant
+    # K_weinberg = 0.4442  # Weinberg constant
+    K_cadence_adaptive = 0.4856  # Cadence-adaptive Weinberg constant
     x_pos, y_pos = [0.0], [0.0]
     use_turn_attenuation = True
     turn_threshold = 0.6 # rad/s
@@ -405,7 +456,8 @@ if __name__ == '__main__':
     step_mag_heading = mag_heading[peaks] # Peaks magnetic heading
 
     # Trajectory & Stride Calculation
-    x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = weinberg_stride_calculation(peaks, step_times, acc_mag, K, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold)
+    # x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = weinberg_stride_calculation(peaks, step_times, acc_mag, K_weinberg, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold)
+    x_pos, y_pos, strides, step_durations, step_speeds, cum_distance = cadence_adaptive_stride_calculation(peaks, step_times, acc_mag, K_cadence_adaptive, use_turn_attenuation, gz_interp, x_pos, y_pos, turn_threshold, step_yaws_unwrapped)
     pdr_df = create_distance_logs(peaks, step_times, strides, step_speeds, cum_distance, x_pos, y_pos, step_mag_heading, step_heading_deg, step_heading_unwrapped_deg, step_heading_change_deg, gz_interp) # Create distance logs
 
     # Extract Low-Speed (< 0.3 m/s) Landmark Events
@@ -431,7 +483,8 @@ if __name__ == '__main__':
     save_logs(pdr_df, landmarks_df, turns_df, output_data_save)
 
     # Print Results
-    print(f"Weinberg Constant (K): {K}")
+    # print(f"Weinberg Constant (K): {K_weinberg}")
+    print(f"Cadence-Adaptive Weinberg Constant (K): {K_cadence_adaptive}")
 
     print(f"Initial Magnetic Heading: {mag_heading[0]}")
     print(f"Initial Magnetic Heading (step): {step_mag_heading[0]}\n")
