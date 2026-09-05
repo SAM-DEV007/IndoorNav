@@ -401,8 +401,11 @@ if __name__ == '__main__':
     # Config
     gyro_threshold = 0.12 # rad/s threshold
 
-    # K_weinberg = 0.4442  # Weinberg constant
-    K_cadence_adaptive = 0.4856  # Cadence-adaptive Weinberg constant
+    # K_weinberg = 0.4442  # Weinberg constant (requires calibration)
+    
+    # Cadence-adaptive Weinberg constant (K = 0.31 * height [m] if not calibrated)
+    # Average height of 1.67 m for adults in India, K = 0.31 * 1.67 = 0.5177
+    K_cadence_adaptive = 0.5177
     x_pos, y_pos = [0.0], [0.0]
     use_turn_attenuation = True
     turn_threshold = 0.6 # rad/s
