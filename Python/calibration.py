@@ -49,6 +49,27 @@ def walk_cadence_verification(acc, g, dt_sampling, t_acc):
     
     return peaks, acc_mag
 
+def calibrate_weinberg_constant(actual_distance, peaks, acc_mag):
+    step_feature_sum = 0
+    
+    for i in range(len(peaks)):
+        idx = peaks[i]
+        
+        w_start = max(0, idx - 10)
+        w_end = min(len(acc_mag), idx + 10)
+        a_max = np.max(acc_mag[w_start:w_end])
+        a_min = np.min(acc_mag[w_start:w_end])
+        
+        feature = (a_max - a_min) ** 0.25 # K = 1
+        step_feature_sum += feature
+
+    if step_feature_sum == 0:
+        return 0
+
+    # K = Actual Distance / Sum of (a_max - a_min)^0.25
+    calibrated_k = actual_distance / step_feature_sum
+    return calibrated_k
+
 def calibrate_cadence_adaptive_k(actual_distance, peaks, acc_mag, step_times):
     step_feature_sum = 0
     
@@ -111,7 +132,8 @@ if __name__ == '__main__':
     peaks, acc_mag = walk_cadence_verification(acc, g, dt_sampling, t_acc)
 
     # Calibrate Cadence-Adaptive Constant
-    recommended_k = calibrate_cadence_adaptive_k(actual_distance=ground_truth_distance, peaks=peaks, acc_mag=acc_mag, step_times=t_acc[peaks])
+    # recommended_k = calibrate_weinberg_constant(ground_truth_distance, peaks, acc_mag)
+    recommended_k = calibrate_cadence_adaptive_k(ground_truth_distance, peaks, acc_mag, t_acc[peaks])
 
     # If K is 0, it means no valid steps were detected.
     if recommended_k == 0:
