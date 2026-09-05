@@ -150,7 +150,8 @@ def create_distance_logs(peaks, step_times, strides, step_speeds, cum_distance, 
         'Gyro_Heading_deg': np.round(step_heading_deg, 1),
         'Gyro_Heading_Unwrapped_deg': np.round(step_heading_unwrapped_deg, 1),
         'Heading_Change_deg': np.round(step_heading_change_deg, 1),
-        'Gyro_Rate_rad_s': np.round(gz_interp[peaks], 3)
+        'Gyro_Rate_rad_s': np.round(gz_interp[peaks], 3),
+        'Weinberg_Constant_K': np.round(np.full(len(peaks), K), 3)
     })
 
     return pdr_df
@@ -430,6 +431,8 @@ if __name__ == '__main__':
     save_logs(pdr_df, landmarks_df, turns_df, output_data_save)
 
     # Print Results
+    print(f"Weinberg Constant (K): {K}")
+
     print(f"Initial Magnetic Heading: {mag_heading[0]}")
     print(f"Initial Magnetic Heading (step): {step_mag_heading[0]}\n")
 
