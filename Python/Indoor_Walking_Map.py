@@ -334,7 +334,7 @@ if __name__ == '__main__':
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-08-31_09-26-16"
+    input_data_name = "2026-09-05_22-43-58"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
@@ -351,7 +351,7 @@ if __name__ == '__main__':
     # Config
     gyro_threshold = 0.12 # rad/s threshold
 
-    K = 0.55  # Weinberg constant
+    K = 0.4442  # Weinberg constant
     x_pos, y_pos = [0.0], [0.0]
     use_turn_attenuation = True
     turn_threshold = 0.6 # rad/s
