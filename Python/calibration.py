@@ -141,4 +141,5 @@ if __name__ == '__main__':
 
     print(f"Ground Truth Distance: {ground_truth_distance} m")
     print(f"Total Steps Detected:  {len(peaks)}")
+    # print(f"Recommended Weinberg Constant (K): {recommended_k:.4f}")
     print(f"Recommended Cadence-Adaptive Constant (K): {recommended_k:.4f}")
