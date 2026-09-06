@@ -3,6 +3,7 @@ import shutil
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import scipy.signal as signal
 
 from scipy.integrate import cumulative_trapezoid
@@ -375,33 +376,65 @@ def detect_room_doors(brightness_df, step_times, x_pos, y_pos, step_yaws_unwrapp
                 heading = step_yaws_unwrapped[step_idx]
                 
                 # Get the room name and direction
-                room_name = room_names[room_idx] if room_idx < len(room_names) else f"Room_{room_idx+1}"
+                base_room_name = room_names[room_idx] if room_idx < len(room_names) else f"Room_{room_idx+1}"
                 direction = room_directions[room_idx] if room_idx < len(room_directions) else "Right"
                 
                 # Plot coords according to direction assignment
-                room_coords = []
-                if direction.lower() == "left":
-                    room_coords.append((rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2)))
-                elif direction.lower() == "right":
-                    room_coords.append((rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2)))
-                elif direction.lower() == "front":
-                    room_coords.append((rx + offset_m * np.cos(heading), ry + offset_m * np.sin(heading)))
-                elif direction.lower() == "back":
-                    room_coords.append((rx - offset_m * np.cos(heading), ry - offset_m * np.sin(heading)))
-                elif direction.lower() == "both":
-                    room_coords.append((rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2)))
-                    room_coords.append((rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2)))
+                if direction.lower() == "both":
+                    coord_left = (rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2))
+                    coord_right = (rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2))
+
+                    if isinstance(base_room_name, list) and len(base_room_name) >= 2:
+                        name_left = base_room_name[0]
+                        name_right = base_room_name[1]
+                    else:
+                        name_left = f"{base_room_name}_Left"
+                        name_right = f"{base_room_name}_Right"
                     
-                rooms.append({
-                    'Room_ID': room_name,
-                    'Time_s': b_time,
-                    'Matched_Step': step_idx + 1,
-                    'Brightness': b_val,
-                    'Direction': direction,
-                    'Coords': room_coords,
-                    'Trajectory_X': rx,
-                    'Trajectory_Y': ry
-                })
+                    rooms.append({
+                        'Room_ID': name_left,
+                        'Time_s': b_time,
+                        'Matched_Step': step_idx + 1,
+                        'Brightness': b_val,
+                        'Direction': "Left (Both)",
+                        'Coords': [coord_left],
+                        'Trajectory_X': rx,
+                        'Trajectory_Y': ry
+                    })
+                    
+                    rooms.append({
+                        'Room_ID': name_right,
+                        'Time_s': b_time,
+                        'Matched_Step': step_idx + 1,
+                        'Brightness': b_val,
+                        'Direction': "Right (Both)",
+                        'Coords': [coord_right],
+                        'Trajectory_X': rx,
+                        'Trajectory_Y': ry
+                    })
+                    
+                # Handle standard single directions
+                else:
+                    room_coords = []
+                    if direction.lower() == "left":
+                        room_coords.append((rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2)))
+                    elif direction.lower() == "right":
+                        room_coords.append((rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2)))
+                    elif direction.lower() == "front":
+                        room_coords.append((rx + offset_m * np.cos(heading), ry + offset_m * np.sin(heading)))
+                    elif direction.lower() == "back":
+                        room_coords.append((rx - offset_m * np.cos(heading), ry - offset_m * np.sin(heading)))
+                        
+                    rooms.append({
+                        'Room_ID': base_room_name,
+                        'Time_s': b_time,
+                        'Matched_Step': step_idx + 1,
+                        'Brightness': b_val,
+                        'Direction': direction,
+                        'Coords': room_coords,
+                        'Trajectory_X': rx,
+                        'Trajectory_Y': ry
+                    })
                 
                 last_trigger_time = b_time
                 room_idx += 1
@@ -441,15 +474,91 @@ def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, step_speeds,
         plt.scatter(x_pos[turn_indices+1], y_pos[turn_indices+1], color='red', marker='^', s=50, label='Turns Landmark', zorder=4)
 
     if rooms_df is not None and not rooms_df.empty:
+        # Determine the scale of the map to dynamically size offsets and invisible bounding boxes
+        x_span = np.max(x_pos) - np.min(x_pos)
+        y_span = np.max(y_pos) - np.min(y_pos)
+        max_span = max(x_span, y_span)
+        
+        # Base offset distance from the marker
+        text_push_dist = max_span * 0.025 
+        
+        # Heuristics to approximate text width and height on the plot for collision detection
+        char_width = max_span * 0.012  
+        line_height = max_span * 0.02
+
+        def get_bbox(x, y, text, ha, va):
+            w = len(text) * char_width
+            h = line_height
+            left = x if ha == 'left' else x - w
+            right = x + w if ha == 'left' else x
+            bottom = y if va == 'bottom' else y - h
+            top = y + h if va == 'bottom' else y
+            return left, right, bottom, top
+
+        def is_overlap(b1, b2):
+            l1, r1, bottom1, t1 = b1
+            l2, r2, bottom2, t2 = b2
+            if l1 > r2 or l2 > r1: return False
+            if bottom1 > t2 or bottom2 > t1: return False
+            return True
+
+        placed_labels = []
         label_added = False
+        
         for idx, row in rooms_df.iterrows():
+            rx, ry = row['Trajectory_X'], row['Trajectory_Y']
+            room_text = str(row['Room_ID'])
+            
             for (cx, cy) in row['Coords']:
                 if not label_added:
                     plt.scatter(cx, cy, color='purple', marker='D', s=80, edgecolor='black', zorder=5, label='Room Door')
                     label_added = True
                 else:
                     plt.scatter(cx, cy, color='purple', marker='D', s=80, edgecolor='black', zorder=5)
-                plt.text(cx + 0.2, cy + 0.2, row['Room_ID'], fontsize=9, color='purple', weight='bold')
+                
+                # Calculate outward vector away from trajectory
+                vx = cx - rx
+                vy = cy - ry
+                length = np.hypot(vx, vy)
+                
+                if length > 0:
+                    nx, ny = vx / length, vy / length
+                else:
+                    nx, ny = 1, 1 
+                
+                halign = 'left' if nx >= 0 else 'right'
+                valign = 'bottom' if ny >= 0 else 'top'
+
+                tx = cx + (nx * text_push_dist)
+                ty = cy + (ny * text_push_dist)
+
+                attempts = 0
+                while attempts < 25:
+                    current_box = get_bbox(tx, ty, room_text, halign, valign)
+                    collision = False
+                    
+                    for pt in placed_labels:
+                        placed_box = get_bbox(pt['tx'], pt['ty'], pt['text'], pt['ha'], pt['va'])
+                        if is_overlap(current_box, placed_box):
+                            collision = True
+                            break
+                    
+                    if not collision:
+                        break
+                        
+                    # If overlapping, dynamically push text further outward and stagger it vertically
+                    tx += nx * (max_span * 0.02)
+                    ty += np.sign(ny + 0.0001) * (max_span * 0.025)
+                    attempts += 1
+                    
+                placed_labels.append({
+                    'tx': tx, 'ty': ty, 'text': room_text, 'ha': halign, 'va': valign
+                })
+                
+                # Draw text with outline
+                txt = plt.text(tx, ty, room_text, fontsize=9, color='purple', weight='bold',
+                               ha=halign, va=valign, zorder=6)
+                txt.set_path_effects([PathEffects.withStroke(linewidth=2.5, foreground='white')])
 
     plt.title(title)
     plt.xlabel('X Position (meters)')
@@ -477,7 +586,7 @@ if __name__ == '__main__':
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-09-06_01-09-08"
+    input_data_name = "2026-09-06_07-51-12"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
@@ -503,7 +612,9 @@ if __name__ == '__main__':
 
     # Cadence-adaptive Weinberg constant (K = 0.31 * height [m] if not calibrated)
     # Average height of 1.67 m for adults in India, K = 0.31 * 1.67 = 0.5177
-    K_cadence_adaptive = 0.5177
+    # For 177 cm, K = 0.5487
+    # G - 0.6574; S - 0.4462; M - 0.4856
+    K_cadence_adaptive = 0.4462
     x_pos, y_pos = [0.0], [0.0]
     use_turn_attenuation = True
     turn_threshold = 0.6 # rad/s
@@ -571,11 +682,11 @@ if __name__ == '__main__':
     turns_df, final_straight_len = create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_deg, cum_distance, step_times, step_heading_deg)
 
     # Sequence mapping for manual direction inputs 
-    manual_room_directions = ["Left", "Right", "Front", "Front", "Front"]
-    room_names = ["Room_A", "Room_B", "Room_C", "Room_D", "Room_E"]
+    manual_room_directions = ["Left", "Left", "Both", "Left", "Left", "Left"]
+    room_names = ["AB-021", "Stairs", ["Lift", "AB-022"], "AB-023", "AB-024", "AB-025"]
     
     if brightness is not None:
-        rooms_df = detect_room_doors(brightness, step_times, x_pos, y_pos, step_yaws_unwrapped, manual_room_directions, room_names, offset_m=0.5)
+        rooms_df = detect_room_doors(brightness, step_times, x_pos, y_pos, step_yaws_unwrapped, manual_room_directions, room_names, offset_m=2.5)
     else:
         rooms_df = None
 
