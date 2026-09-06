@@ -380,7 +380,9 @@ def detect_room_doors(brightness_df, step_times, x_pos, y_pos, step_yaws_unwrapp
                 direction = room_directions[room_idx] if room_idx < len(room_directions) else "Right"
                 
                 # Plot coords according to direction assignment
-                if direction.lower() == "both":
+                if direction.lower() == "ignore":
+                    pass  # Skip this room detection
+                elif direction.lower() == "both":
                     coord_left = (rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2))
                     coord_right = (rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2))
 
@@ -682,8 +684,8 @@ if __name__ == '__main__':
     turns_df, final_straight_len = create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_deg, cum_distance, step_times, step_heading_deg)
 
     # Sequence mapping for manual direction inputs 
-    manual_room_directions = ["Left", "Left", "Both", "Left", "Left", "Left"]
-    room_names = ["AB-021", "Stairs", ["Lift", "AB-022"], "AB-023", "AB-024", "AB-025"]
+    manual_room_directions = ["Left", "Left", "Both", "Ignore", "Ignore", "Left", "Left", "Left"]
+    room_names = ["AB-021", "Stairs", ["Lift", "AB-022"], "UK", "UK", "AB-023", "AB-024", "AB-025"]
     
     if brightness is not None:
         rooms_df = detect_room_doors(brightness, step_times, x_pos, y_pos, step_yaws_unwrapped, manual_room_directions, room_names, offset_m=2.5)
