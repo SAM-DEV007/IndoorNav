@@ -1,0 +1,5 @@
+Turn_ID,Start_Step,End_Step,Peak_Turn_Step,Start_Time_s,End_Time_s,Start_Dist_m,End_Dist_m,Start_Heading_deg,End_Heading_deg,Turn_Angle_deg,Turn_Direction,Peak_Gyro_Rate_rad_s,Straight_Segment_Before_Turn_m
+Turn_1,14,17,15,16.23,20.18,7.19,7.94,22.4,269.5,-112.1,Right,-1.791,7.19
+Turn_2,24,27,26,25.9,29.5,11.3,12.01,265.4,72.5,168.0,Left,1.913,3.36
+Turn_3,30,32,32,31.82,33.27,13.45,14.38,69.8,12.5,-72.3,Right,-0.709,1.44
+Turn_4,34,36,35,34.75,36.23,15.41,16.09,358.6,41.0,17.6,Left,1.304,1.04

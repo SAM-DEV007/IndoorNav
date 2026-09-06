@@ -1,0 +1,5 @@
+Landmark_ID,Step_Range,Time_s,Cumulative_Dist_m,Distance_From_Prev_Landmark_m
+LM_Pause_1,Steps 15-15,18.87s - 18.87s,7.26,7.26
+LM_Pause_2,Steps 18-18,21.53s - 21.53s,8.22,0.96
+LM_Pause_3,Steps 25-26,27.81s - 28.37s,11.5,3.28
+LM_Pause_4,Steps 28-28,30.50s - 30.50s,12.3,0.8

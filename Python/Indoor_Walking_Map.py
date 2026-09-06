@@ -59,7 +59,13 @@ def calculate_raw_peaks(acc, g, dt_sampling):
     # raw_peaks, _ = signal.find_peaks(acc_mag_filt, height=np.mean(acc_mag_filt) + 0.35, distance=int(0.35 / dt_sampling))
     raw_peaks, _ = signal.find_peaks(acc_mag_filt, prominence=0.2, distance=int(0.35 / dt_sampling))
 
-    return raw_peaks, acc_mag
+    window = int(1.0 / dt_sampling)
+    acc_var = pd.Series(acc_mag).rolling(window=window, center=True).var().fillna(0).values
+
+    # Discard peaks that occur while stationary (variance < 0.05)
+    active_peaks = [p for p in raw_peaks if acc_var[p] > 0.05]
+
+    return np.array(active_peaks), acc_mag
 
 def calculate_yaw_gyro(gz_interp, gyro_threshold, t_acc):
     gz_gated = np.where(np.abs(gz_interp) < gyro_threshold, 0.0, gz_interp)
@@ -345,7 +351,79 @@ def create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_
 
     return turns_df, round(final_straight_len, 2)
 
-def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_name, output_data_save):
+def detect_room_doors(brightness_df, step_times, x_pos, y_pos, step_yaws_unwrapped, room_directions, room_names=[], offset_m=1.5):
+    b_vals = brightness_df['brightness'].values
+    t_b = brightness_df['seconds_elapsed'].values
+    
+    rooms = []
+    room_idx = 0
+    last_trigger_time = -999.0
+    
+    for i in range(1, len(b_vals)):
+        # If the brightness value changes from the previous recorded value
+        if b_vals[i] != b_vals[i-1]:
+            b_time = t_b[i]
+            
+            # Debounce
+            if (b_time - last_trigger_time) > 1.0:
+                b_val = b_vals[i]
+                
+                # Match nearest physical walking step
+                step_idx = np.argmin(np.abs(step_times - b_time))
+                rx = x_pos[step_idx + 1]
+                ry = y_pos[step_idx + 1]
+                heading = step_yaws_unwrapped[step_idx]
+                
+                # Get the room name and direction
+                room_name = room_names[room_idx] if room_idx < len(room_names) else f"Room_{room_idx+1}"
+                direction = room_directions[room_idx] if room_idx < len(room_directions) else "Right"
+                
+                # Plot coords according to direction assignment
+                room_coords = []
+                if direction.lower() == "left":
+                    room_coords.append((rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2)))
+                elif direction.lower() == "right":
+                    room_coords.append((rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2)))
+                elif direction.lower() == "front":
+                    room_coords.append((rx + offset_m * np.cos(heading), ry + offset_m * np.sin(heading)))
+                elif direction.lower() == "back":
+                    room_coords.append((rx - offset_m * np.cos(heading), ry - offset_m * np.sin(heading)))
+                elif direction.lower() == "both":
+                    room_coords.append((rx + offset_m * np.cos(heading + np.pi/2), ry + offset_m * np.sin(heading + np.pi/2)))
+                    room_coords.append((rx + offset_m * np.cos(heading - np.pi/2), ry + offset_m * np.sin(heading - np.pi/2)))
+                    
+                rooms.append({
+                    'Room_ID': room_name,
+                    'Time_s': b_time,
+                    'Matched_Step': step_idx + 1,
+                    'Brightness': b_val,
+                    'Direction': direction,
+                    'Coords': room_coords,
+                    'Trajectory_X': rx,
+                    'Trajectory_Y': ry
+                })
+                
+                last_trigger_time = b_time
+                room_idx += 1
+                
+    return pd.DataFrame(rooms)
+
+def rotate_rooms(rooms_df, theta):
+    if rooms_df is None or rooms_df.empty: return rooms_df
+    
+    rooms_rot = rooms_df.copy()
+    new_coords_list = []
+    for coords in rooms_rot['Coords']:
+        rot_coords = []
+        for (cx, cy) in coords:
+            rx = cx * np.cos(theta) - cy * np.sin(theta)
+            ry = cx * np.sin(theta) + cy * np.cos(theta)
+            rot_coords.append((rx, ry))
+        new_coords_list.append(rot_coords)
+    rooms_rot['Coords'] = new_coords_list
+    return rooms_rot
+
+def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, step_speeds, rooms_df, title, save_name, output_data_save):
     plt.figure(figsize=(10, 8))
     plt.plot(x_pos, y_pos, linestyle='--', color='gray', zorder=1, label='Trajectory')
 
@@ -362,6 +440,17 @@ def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_
     if len(turn_indices) > 0:
         plt.scatter(x_pos[turn_indices+1], y_pos[turn_indices+1], color='red', marker='^', s=50, label='Turns Landmark', zorder=4)
 
+    if rooms_df is not None and not rooms_df.empty:
+        label_added = False
+        for idx, row in rooms_df.iterrows():
+            for (cx, cy) in row['Coords']:
+                if not label_added:
+                    plt.scatter(cx, cy, color='purple', marker='D', s=80, edgecolor='black', zorder=5, label='Room Door')
+                    label_added = True
+                else:
+                    plt.scatter(cx, cy, color='purple', marker='D', s=80, edgecolor='black', zorder=5)
+                plt.text(cx + 0.2, cy + 0.2, row['Room_ID'], fontsize=9, color='purple', weight='bold')
+
     plt.title(title)
     plt.xlabel('X Position (meters)')
     plt.ylabel('Y Position (meters)')
@@ -372,10 +461,14 @@ def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, title, save_
     plt.savefig(output_data_save / f'{save_name}.png', dpi=300)
     plt.close()
 
-def save_logs(pdr_df, landmarks_df, turns_df, output_data_save):
+def save_logs(pdr_df, landmarks_df, turns_df, rooms_df, output_data_save):
     pdr_df.to_csv(output_data_save / f"pdr_distance_log.csv", index=False)
     landmarks_df.to_csv(output_data_save / f"pdr_landmarks_log.csv", index=False)
     turns_df.to_csv(output_data_save / f"pdr_turns_log.csv", index=False)
+    if rooms_df is not None and not rooms_df.empty:
+        rooms_export = rooms_df.copy()
+        rooms_export['Coords'] = rooms_export['Coords'].astype(str)
+        rooms_export.to_csv(output_data_save / f"pdr_rooms_log.csv", index=False)
 
 if __name__ == '__main__':
     # Folders
@@ -384,7 +477,7 @@ if __name__ == '__main__':
 
     save_folder = parent_folder_path / "Output"
 
-    input_data_name = "2026-09-05_23-14-18"
+    input_data_name = "2026-09-06_01-09-08"
     input_data_path = dataset_folder / input_data_name
 
     output_data_save = save_folder / input_data_name
@@ -398,11 +491,16 @@ if __name__ == '__main__':
     mag = pd.read_csv(input_data_path / "Magnetometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
     grav = pd.read_csv(input_data_path / "Gravity.csv").sort_values('seconds_elapsed').reset_index(drop=True)
 
+    try:
+        brightness = pd.read_csv(input_data_path / "Brightness.csv").sort_values('seconds_elapsed').reset_index(drop=True)
+    except FileNotFoundError:
+        brightness = None
+
     # Config
     gyro_threshold = 0.12 # rad/s threshold
 
     # K_weinberg = 0.4442  # Weinberg constant (requires calibration)
-    
+
     # Cadence-adaptive Weinberg constant (K = 0.31 * height [m] if not calibrated)
     # Average height of 1.67 m for adults in India, K = 0.31 * 1.67 = 0.5177
     K_cadence_adaptive = 0.5177
@@ -472,18 +570,28 @@ if __name__ == '__main__':
     turn_groups, turn_indices = detect_turns(peaks, step_heading_unwrapped_deg, step_gyro_rate, gyro_turn_threshold, min_turn_angle_deg, max_gap_steps)
     turns_df, final_straight_len = create_turn_logs(turn_groups, step_gyro_rate, peaks, step_heading_unwrapped_deg, cum_distance, step_times, step_heading_deg)
 
+    # Sequence mapping for manual direction inputs 
+    manual_room_directions = ["Left", "Right", "Front", "Front", "Front"]
+    room_names = ["Room_A", "Room_B", "Room_C", "Room_D", "Room_E"]
+    
+    if brightness is not None:
+        rooms_df = detect_room_doors(brightness, step_times, x_pos, y_pos, step_yaws_unwrapped, manual_room_directions, room_names, offset_m=0.5)
+    else:
+        rooms_df = None
+
     # Plot Walking Map with Landmarks
-    plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark', 'pdr_map', output_data_save)
+    plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, step_speeds, rooms_df, 'Pedestrian Dead Reckoning with Landmark', 'pdr_map', output_data_save)
 
     # Plot rotated magnetic map
     theta = np.deg2rad(90.0 - step_mag_heading[0])
     x_rot = x_pos * np.cos(theta) - y_pos * np.sin(theta)
     y_rot = x_pos * np.sin(theta) + y_pos * np.cos(theta)
+    rooms_rot = rotate_rooms(rooms_df, theta)
 
-    plot_walking_map(x_rot, y_rot, low_speed_indices, turn_indices, 'Pedestrian Dead Reckoning with Landmark - Aligned with Magnetic North', 'pdr_map_magnetic', output_data_save)
+    plot_walking_map(x_rot, y_rot, low_speed_indices, turn_indices, step_speeds, rooms_rot, 'Pedestrian Dead Reckoning with Landmark - Aligned with Magnetic North', 'pdr_map_magnetic', output_data_save)
 
     # Save logs
-    save_logs(pdr_df, landmarks_df, turns_df, output_data_save)
+    save_logs(pdr_df, landmarks_df, turns_df, rooms_df, output_data_save)
 
     # Print Results
     # print(f"Weinberg Constant (K): {K_weinberg}")
