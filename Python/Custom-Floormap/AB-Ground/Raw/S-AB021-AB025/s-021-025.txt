@@ -1,0 +1,2 @@
+manual_room_directions = ["Left", "Left", "Both", "Ignore", "Ignore", "Left", "Left", "Left"]
+    room_names = ["AB-021", "Stairs", ["Lift", "AB-022"], "UK", "UK", "AB-023", "AB-024", "AB-025"]
