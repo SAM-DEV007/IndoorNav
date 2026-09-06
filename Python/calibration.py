@@ -102,12 +102,12 @@ def calibrate_cadence_adaptive_k(actual_distance, peaks, acc_mag, step_times):
     return calibrated_k
 
 if __name__ == '__main__':
-    ground_truth_distance = 6.4 # Ground Truth (m)
+    ground_truth_distance = 60 # Ground Truth (m)
     
     # Folders
     parent_folder_path = Path(__file__).parent.resolve()
     dataset_folder = parent_folder_path / "SensorLogger-Cali"
-    input_data_name = "2026-09-05_22-43-58"
+    input_data_name = "2026-09-06_06-04-41"
     input_data_path = dataset_folder / input_data_name
 
     # Load Data (Assuming a straight line walk)
