@@ -1,0 +1,2 @@
+manual_room_directions = ["Right", "Both", "Both", "Right", "Right", "Right", "Left", "Left", "Right", "Both", "Both"]
+    room_names = ["Main Audi AB012", ["Conference room", "Discussion room"], ["Vice chancellor", "Vice president"], "Secretary to VC", "Chancelor", "Trustee", "Admission office AB 026", "Waiting room", "Staircase", ["Corridor", "Corridor"], ["Reception", "Reception"]]
