@@ -314,8 +314,8 @@ if __name__ == "__main__":
     ab017_save_dir = save_dir / "G-AB017C-AB020TIHAN"
     ab017_save_dir.mkdir(parents=True, exist_ok=True)
 
-    remove_steps_correction(ab017_dir, start_step=30, end_step=35, original_min_len=72) # Between W-AB018 and AB019
-    remove_steps_correction(ab017_dir, start_step=50, end_step=55, original_min_len=66) # Between AB019 and AB020
+    # remove_steps_correction(ab017_dir, start_step=30, end_step=35, original_min_len=72) # Between W-AB018 and AB019
+    # remove_steps_correction(ab017_dir, start_step=50, end_step=55, original_min_len=66) # Between AB019 and AB020
     ab017_dist_df, ab017_rooms_df = process_data(ab017_dir)
     dlhb_dist_df, dlhb_rooms_df = load_unified_data(save_dir, 1) # Unified data load for DLHB
 
