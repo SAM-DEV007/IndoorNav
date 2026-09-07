@@ -1,0 +1,5 @@
+Room_ID,Time_s,Matched_Step,Brightness,Direction,Trajectory_X,Trajectory_Y,Trajectory_X_rot,Trajectory_Y_rot,Coords_X_rot,Coords_Y_rot,Coords_X,Coords_Y
+AB017 Cabin,8.001,4,0.9094488024711608,Right,2.8,-0.17,1.14,-2.56,-1.13,-3.58,2.65,-2.66
+AB018 Washroom,20.009999755859376,24,0.4448818862438202,Left,16.99,-2.25,5.87,-16.1,8.24,-15.33,17.4,0.22
+AB019 Cabin,34.023,43,0.8543307185173035,Left,29.76,-6.59,7.93,-29.43,10.42,-29.26,30.76,-4.3
+AB020 TiHAN-IITH,45.033,55,0.3661417365074157,Right,37.28,-10.73,7.74,-38.01,5.25,-37.69,35.84,-12.78
