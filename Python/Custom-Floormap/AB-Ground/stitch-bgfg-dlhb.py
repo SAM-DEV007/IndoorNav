@@ -11,6 +11,48 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
+def dlhb_correct_rooms(path: Path, offset_m: float = 2.5) -> pd.DataFrame:
+    dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
+
+    corrections = [
+        ("Staircase", 143, "Left"),
+        ("Lift", 154, "Left (Both)"),
+        ("Ab 022 cabins", 154, "Right (Both)"),
+    ]
+
+    new_rows = []
+    for room_id, step, direction in corrections:
+        step_data = dist_df.loc[step]
+        rx, ry = step_data["X_m"], step_data["Y_m"]
+        heading = np.deg2rad(step_data["Gyro_Heading_Unwrapped_deg"])
+
+        angle_shift = (
+            np.pi / 2 if "left" in direction.lower() else -np.pi / 2
+        )
+        door_x = rx + offset_m * np.cos(heading + angle_shift)
+        door_y = ry + offset_m * np.sin(heading + angle_shift)
+
+        new_rows.append(
+            {
+                "Room_ID": room_id,
+                "Time_s": "MANUAL",
+                "Matched_Step": step,
+                "Brightness": "MANUAL",
+                "Direction": direction,
+                "Coords": str([(door_x, door_y)]),
+                "Trajectory_X": rx,
+                "Trajectory_Y": ry,
+            }
+        )
+
+    corrected_rooms_df = pd.concat(
+        [rooms_df, pd.DataFrame(new_rows)], ignore_index=True
+    )
+    corrected_rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
+
+    return corrected_rooms_df
+
 def process_data(path, reset_coords=False):
     # Reset coords is only for the S-BG-FG dataset
     # Simply means that the coordinates are reset to the origin (0,0) for the S-BG-FG dataset (Front gate is at the origin)
@@ -252,17 +294,19 @@ if __name__ == "__main__":
     dlhb_save_dir.mkdir(parents=True, exist_ok=True)
 
     bgfg_dist_df, bgfg_rooms_df = process_data(bgfg_dir, reset_coords=True)
+
+    dlhb_correct_rooms(dlhb_dir) # Correct the room coordinates (AB022 and Lift)
     dlhb_dist_df, dlhb_rooms_df = process_data(dlhb_dir)
 
     dlhb_stitched_dist_df, dlhb_stitched_rooms_df = stitch_floorplan(bgfg_rooms_df, dlhb_dist_df.copy(), dlhb_rooms_df.copy())
-
-    unified_dist, unified_rooms = generate_unified_floorplan(bgfg_save_dir / "stitched_fp_distance.csv", bgfg_save_dir / "stitched_fp_rooms.csv",
-                               dlhb_save_dir / "stitched_fp_distance.csv", dlhb_save_dir / "stitched_fp_rooms.csv",
-                               save_dir)
-    render_floorplan(unified_dist, unified_rooms, save_dir)
 
     save_data(bgfg_dist_df, bgfg_rooms_df, bgfg_save_dir)
     save_data(dlhb_dist_df, dlhb_rooms_df, dlhb_save_dir)
 
     save_stitched_data(dlhb_stitched_dist_df, dlhb_stitched_rooms_df, dlhb_save_dir)
     save_stitched_data(bgfg_dist_df, bgfg_rooms_df, bgfg_save_dir)
+
+    unified_dist, unified_rooms = generate_unified_floorplan(bgfg_save_dir / "stitched_fp_distance.csv", bgfg_save_dir / "stitched_fp_rooms.csv",
+                               dlhb_save_dir / "stitched_fp_distance.csv", dlhb_save_dir / "stitched_fp_rooms.csv",
+                               save_dir)
+    render_floorplan(unified_dist, unified_rooms, save_dir)
