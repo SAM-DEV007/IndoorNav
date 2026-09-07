@@ -15,6 +15,9 @@ def dlhb_correct_rooms(path: Path, offset_m: float = 2.5) -> pd.DataFrame:
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
 
+    if rooms_df.iloc[-1]["Room_ID"].lower() == "lift":
+        return # No correction needed if the last second room is already "Lift"
+
     corrections = [
         ("Staircase", 143, "Left"),
         ("Lift", 154, "Left (Both)"),
