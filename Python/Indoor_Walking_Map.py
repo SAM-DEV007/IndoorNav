@@ -558,8 +558,7 @@ def plot_walking_map(x_pos, y_pos, low_speed_indices, turn_indices, step_speeds,
                 })
                 
                 # Draw text with outline
-                txt = plt.text(tx, ty, room_text, fontsize=9, color='purple', weight='bold',
-                               ha=halign, va=valign, zorder=6)
+                txt = plt.text(tx, ty, room_text, fontsize=9, color='purple', weight='bold', ha=halign, va=valign, zorder=6)
                 txt.set_path_effects([PathEffects.withStroke(linewidth=2.5, foreground='white')])
 
     plt.title(title)
