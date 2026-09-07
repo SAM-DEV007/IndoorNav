@@ -143,8 +143,8 @@ def generate_unified_floorplan(bgfg_dist_path, bgfg_rooms_path, dlhb_dist_path, 
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    unified_dist.to_csv(output_path / "unified_fp_distance_bgfg_dlhb.csv", index=False)
-    unified_rooms.to_csv(output_path / "unified_fp_rooms_bgfg_dlhb.csv", index=False)
+    unified_dist.to_csv(output_path / "unified_fp_distance_1.csv", index=False)
+    unified_rooms.to_csv(output_path / "unified_fp_rooms_1.csv", index=False)
 
     return unified_dist, unified_rooms
 
@@ -217,7 +217,7 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
             ax.set_title('AB Ground Floor', fontsize=15, weight='bold', pad=20)
             ax.legend(loc='lower right', frameon=True, fontsize=9.5, labelspacing=1.3, handletextpad=1.0, borderpad=1.0)
             plt.tight_layout()
-            plt.savefig(output_path / 'floorplan_bgfg_dlhb.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_path / 'floorplan_1.png', dpi=300, bbox_inches='tight')
             plt.close()
         else:
             ax.set_xlabel('X Position (meters)', fontsize=11, weight='bold', labelpad=8)
@@ -228,7 +228,7 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
             ax.set_title('AB Ground Floor (With Coordinates)', fontsize=15, weight='bold', pad=20)
             ax.legend(loc='lower right', frameon=True, fontsize=9.5, labelspacing=1.3, handletextpad=1.0, borderpad=1.0)
             plt.tight_layout()
-            plt.savefig(output_path / 'floorplan_coords_bgfg_dlhb.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_path / 'floorplan_coords_1.png', dpi=300, bbox_inches='tight')
             plt.close()
 
 def save_data(dist_df, rooms_df, path):
