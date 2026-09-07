@@ -301,7 +301,7 @@ if __name__ == "__main__":
     dlhb_correct_rooms(dlhb_dir) # Correct the room coordinates (AB022 and Lift)
     dlhb_dist_df, dlhb_rooms_df = process_data(dlhb_dir)
 
-    dlhb_stitched_dist_df, dlhb_stitched_rooms_df = stitch_floorplan(bgfg_rooms_df, dlhb_dist_df.copy(), dlhb_rooms_df.copy())
+    dlhb_stitched_dist_df, dlhb_stitched_rooms_df = stitch_floorplan(bgfg_rooms_df.copy(), dlhb_dist_df.copy(), dlhb_rooms_df.copy())
 
     save_data(bgfg_dist_df, bgfg_rooms_df, bgfg_save_dir)
     save_data(dlhb_dist_df, dlhb_rooms_df, dlhb_save_dir)
