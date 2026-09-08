@@ -14,72 +14,6 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
-def remove_steps_correction(path, start_step=30, end_step=35, original_min_len=72):
-    dist_path = path / "pdr_distance_log.csv"
-
-    dist_df = pd.read_csv(dist_path)
-    if len(dist_df) < original_min_len:
-        return
-
-    prev_step = start_step - 1
-
-    # Cumulative displacements traversed during steps
-    x_prev = dist_df.loc[dist_df["Step"] == prev_step, "X_m"].values[0]
-    y_prev = dist_df.loc[dist_df["Step"] == prev_step, "Y_m"].values[0]
-
-    dist_prev = dist_df.loc[dist_df["Step"] == prev_step, "Cumulative_Distance_m"].values[0]
-    time_prev = dist_df.loc[dist_df["Step"] == prev_step, "Seconds_Elapsed"].values[0]
-
-    x_end = dist_df.loc[dist_df["Step"] == end_step, "X_m"].values[0]
-    y_end = dist_df.loc[dist_df["Step"] == end_step, "Y_m"].values[0]
-
-    dist_end = dist_df.loc[dist_df["Step"] == end_step, "Cumulative_Distance_m"].values[0]
-    time_end = dist_df.loc[dist_df["Step"] == end_step, "Seconds_Elapsed"].values[0]
-
-    delta_x = x_end - x_prev
-    delta_y = y_end - y_prev
-    delta_dist = dist_end - dist_prev
-    delta_time = time_end - time_prev
-
-    after_mask = dist_df["Step"] > end_step
-
-    dist_df.loc[after_mask, "X_m"] = np.round(dist_df.loc[after_mask, "X_m"] - delta_x, 2)
-    dist_df.loc[after_mask, "Y_m"] = np.round(dist_df.loc[after_mask, "Y_m"] - delta_y, 2)
-    dist_df.loc[after_mask, "Cumulative_Distance_m"] = np.round(dist_df.loc[after_mask, "Cumulative_Distance_m"] - delta_dist, 2)
-    dist_df.loc[after_mask, "Seconds_Elapsed"] = np.round(dist_df.loc[after_mask, "Seconds_Elapsed"] - delta_time, 2)
-
-    dist_df = dist_df[~dist_df["Step"].between(start_step, end_step)].copy()
-    dist_df["Step"] = np.arange(1, len(dist_df) + 1)
-    dist_df.reset_index(drop=True, inplace=True)
-    dist_df.to_csv(dist_path, index=False)
-
-    rooms_path = path / "pdr_rooms_log.csv"
-
-    rooms_df = pd.read_csv(rooms_path)
-    steps_dropped = end_step - start_step + 1
-
-    room_after_mask = rooms_df["Matched_Step"] > end_step
-
-    # Shift step indices
-    rooms_df.loc[room_after_mask, "Matched_Step"] -= steps_dropped
-
-    # Shift trajectory anchor points
-    rooms_df.loc[room_after_mask, "Trajectory_X"] = np.round(rooms_df.loc[room_after_mask, "Trajectory_X"] - delta_x, 2)
-    rooms_df.loc[room_after_mask, "Trajectory_Y"] = np.round(rooms_df.loc[room_after_mask, "Trajectory_Y"] - delta_y, 2)
-
-    # Shift door coordinates string [(x, y)]
-    for idx in rooms_df[room_after_mask].index:
-        coords_str = rooms_df.loc[idx, "Coords"]
-        clean_str = re.sub(r"np\.float64\(([^)]+)\)", r"\1", str(coords_str))
-        coords = ast.literal_eval(clean_str)
-        shifted_coords = [
-            (round(cx - delta_x, 2), round(cy - delta_y, 2))
-            for (cx, cy) in coords
-        ]
-        rooms_df.loc[idx, "Coords"] = str(shifted_coords)
-
-    rooms_df.to_csv(rooms_path, index=False)
-
 def process_data(path):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv")
 
@@ -314,8 +248,6 @@ if __name__ == "__main__":
     ab017_save_dir = save_dir / "G-AB017C-AB020TIHAN"
     ab017_save_dir.mkdir(parents=True, exist_ok=True)
 
-    # remove_steps_correction(ab017_dir, start_step=30, end_step=35, original_min_len=72) # Between W-AB018 and AB019
-    # remove_steps_correction(ab017_dir, start_step=50, end_step=55, original_min_len=66) # Between AB019 and AB020
     ab017_dist_df, ab017_rooms_df = process_data(ab017_dir)
     dlhb_dist_df, dlhb_rooms_df = load_unified_data(save_dir, 1) # Unified data load for DLHB
 
