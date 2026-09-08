@@ -177,7 +177,6 @@ def stitch_floorplan(unified_dist_df, unified_rooms_df, new_dist_df, new_rooms_d
     p1_row = p1_rows.iloc[0] if not p1_rows.empty else rooms_df.iloc[len(rooms_df) // 2]
     p1_new = np.array([p1_row["Trajectory_X_rot"], p1_row["Trajectory_Y_rot"]])
 
-    # 2. Target Point on V2: Shifted bgfg_step_offset_back steps back along BGFG from Discussion room
     bgfg_disc = unified_rooms_df[(unified_rooms_df["Path_ID"] == "BGFG") & (unified_rooms_df["Room_ID"].str.contains(r"discussion|conference", case=False, na=False))]
 
     bgfg_matched_step = int(bgfg_disc.iloc[0]["Matched_Step"])
@@ -266,11 +265,11 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
     new_dist["Path_ID"] = new_path_id
     new_rooms["Path_ID"] = new_path_id
 
-    # 2. Combine Distance Data and Stitch All Junctions Seamlessly
+    # Combine Distance Data and Stitch All Junctions Seamlessly
     combined_dist = pd.concat([unified_dist, new_dist], ignore_index=True)
     unified_dist_new = detect_and_stitch_intersections(combined_dist, dist_threshold=1.5, fixed_path_id=new_path_id)
 
-    # 3. Filter New Rooms Data
+    # Filter New Rooms Data
     rt_corr_indices = new_rooms[new_rooms["Room_ID"].str.contains(r"right turn corridor", case=False, na=False)].index
     first_rt_idx = rt_corr_indices[0] if len(rt_corr_indices) > 0 else None
 
