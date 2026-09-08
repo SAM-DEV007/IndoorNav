@@ -186,6 +186,31 @@ def detect_and_stitch_intersections(dist_df, dist_threshold=1.5, fixed_path_id="
 
     return dist_df
 
+def calculate_cumulative_distance_rot(dist_df):
+    df = dist_df.copy()
+    cum_dist = pd.Series(0.0, index=df.index, dtype=float)
+
+    for _, group in df.groupby("Path_ID", sort=False):
+        if group.empty:
+            continue
+        x = group["X_rot"].to_numpy(dtype=float)
+        y = group["Y_rot"].to_numpy(dtype=float)
+        dx = np.diff(x, prepend=x[0])
+        dy = np.diff(y, prepend=y[0])
+        cum_dist.loc[group.index] = np.cumsum(np.hypot(dx, dy))
+
+    df["Cumulative_Distance_Rot_m"] = np.round(cum_dist, 2)
+
+    # Update position
+    cols = [c for c in df.columns if c not in ("Cumulative_Distance_Rot_m", "Path_ID")]
+    y_idx = cols.index("Y_rot")
+    insert_cols = ["Cumulative_Distance_Rot_m"]
+    if "Path_ID" in df.columns:
+        insert_cols.append("Path_ID")
+    cols[y_idx + 1 : y_idx + 1] = insert_cols
+
+    return df[cols]
+
 def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_df, new_rooms_df, output_dir, new_path_id="BANK"):
     unified_dist = pd.read_csv(unified_dist_path)
     unified_rooms = pd.read_csv(unified_rooms_path)
@@ -214,6 +239,8 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
+
+    unified_dist_new = calculate_cumulative_distance_rot(unified_dist_new)
 
     unified_dist_new.to_csv(output_dir / "unified_fp_distance_4.csv", index=False)
     unified_rooms_new.to_csv(output_dir / "unified_fp_rooms_4.csv", index=False)
