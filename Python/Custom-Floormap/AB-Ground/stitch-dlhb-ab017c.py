@@ -14,6 +14,42 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
+def ab015_correct_washrooms(path, offset_m = 2.5):
+    dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
+
+    if rooms_df[rooms_df['Room_ID'] == 'AB018 Washroom'].empty:
+        return # No correction needed if the washrooms are already present
+
+    original_step = rooms_df[rooms_df['Room_ID'] == 'AB018 Washroom'][['Matched_Step']].values[0][0]
+    modified_step = original_step - 3
+
+    data = dist_df.loc[modified_step]
+    rx, ry = data["X_m"], data["Y_m"]
+    heading = np.deg2rad(data["Gyro_Heading_Unwrapped_deg"])
+
+    angle_shift = np.pi / 2
+    door_x = rx + offset_m * np.cos(heading + angle_shift)
+    door_y = ry + offset_m * np.sin(heading + angle_shift)
+
+    new_washroom_row = {
+        "Room_ID": "AB018 A - Ladies Washroom",
+        "Time_s": "MANUAL",
+        "Matched_Step": modified_step,
+        "Brightness": "MANUAL",
+        "Direction": "Left",
+        "Coords": str([(door_x, door_y)]),
+        "Trajectory_X": rx,
+        "Trajectory_Y": ry,
+    }
+
+    rooms_df = pd.concat([rooms_df, pd.DataFrame([new_washroom_row])], ignore_index=True)
+    rooms_df.loc[rooms_df['Room_ID'] == 'AB018 Washroom', 'Room_ID'] = 'AB018 B - Gents Washroom'
+
+    rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
+
+    return rooms_df
+
 def process_data(path):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv")
 
@@ -247,6 +283,8 @@ if __name__ == "__main__":
     save_dir = Path(__file__).parent.resolve() / "Processed"
     ab017_save_dir = save_dir / "G-AB017C-AB020TIHAN"
     ab017_save_dir.mkdir(parents=True, exist_ok=True)
+    
+    ab015_correct_washrooms(ab017_dir)
 
     ab017_dist_df, ab017_rooms_df = process_data(ab017_dir)
     dlhb_dist_df, dlhb_rooms_df = load_unified_data(save_dir, 1) # Unified data load for DLHB
