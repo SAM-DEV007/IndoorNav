@@ -11,7 +11,7 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
-def dlhb_correct_rooms(path: Path, offset_m: float = 2.5) -> pd.DataFrame:
+def dlhb_correct_rooms(path: Path, offset_m: float = 2.5):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
 
