@@ -13,6 +13,20 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
+def correct_room_names(path):
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv")
+
+    if rooms_df[rooms_df['Room_ID'] == 'W-AB-009'].empty:
+            return # No correction needed
+
+    # Correct room names for consistency
+    rooms_df.loc[rooms_df['Room_ID'] == 'W-AB-009', 'Room_ID'] = 'AB009 Washroom'
+    rooms_df.loc[rooms_df['Room_ID'] == 'S-AB-008', 'Room_ID'] = 'AB008 Storage'
+    rooms_df.loc[rooms_df['Room_ID'] == 'CS-AB-007', 'Room_ID'] = 'AB007 Computer Science'
+    rooms_df.loc[rooms_df['Room_ID'] == 'B-AB-006', 'Room_ID'] = 'AB006 Bank'
+
+    rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
+
 def process_data(path, target_room_offset=2.50):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv")
@@ -285,7 +299,7 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
                 ha, va = ("right", "center")
                 text_x = cx - 1.0
                 text_y = cy
-            elif room_name_clean == "b-ab-006":
+            elif room_name_clean == "ab006 bank":
                 ha, va = ("center", "bottom")
                 text_x = cx
                 text_y = cy + 1.0
@@ -365,6 +379,8 @@ if __name__ == "__main__":
     new_path_dir = raw_dir / new_data_name
     new_save_dir = save_dir / new_data_name
     new_save_dir.mkdir(parents=True, exist_ok=True)
+
+    correct_room_names(new_path_dir)
 
     new_dist_df, new_rooms_df = process_data(new_path_dir, target_room_offset=2.50)
     save_data(new_dist_df, new_rooms_df, new_save_dir)
