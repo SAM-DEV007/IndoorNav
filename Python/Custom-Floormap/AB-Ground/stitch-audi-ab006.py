@@ -350,6 +350,16 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
             plt.savefig(output_path / "floorplan_coords_4.png", dpi=300, bbox_inches="tight")
             plt.close()
 
+def remove_useless_columns(dist_path, rooms_path):
+    dist_df = pd.read_csv(dist_path)
+    rooms_df = pd.read_csv(rooms_path)
+
+    dist_df.drop(columns=["Seconds_Elapsed", "Stride_Length_m", "Speed_m_s", "Cumulative_Distance_m", "X_m", "Y_m", "Cadence_Adaptive_Constant_K"], inplace=True, errors="ignore")
+    rooms_df.drop(columns=["Time_s", "Brightness", "Trajectory_X", "Trajectory_Y", "Coords_X", "Coords_Y"], inplace=True, errors="ignore")
+
+    dist_df.to_csv(dist_path, index=False)
+    rooms_df.to_csv(rooms_path, index=False)
+
 def transfer_final_data(source_dir, target_dir):
     source_dist_path = source_dir / "unified_fp_distance_4.csv"
     source_rooms_path = source_dir / "unified_fp_rooms_4.csv"
@@ -365,6 +375,8 @@ def transfer_final_data(source_dir, target_dir):
     shutil.copy2(source_rooms_path, target_rooms_path)
     shutil.copy2(source_floorplan_path, target_floorplan_path)
     shutil.copy2(source_floorplan_coords_path, target_floorplan_coords_path)
+
+    remove_useless_columns(target_dist_path, target_rooms_path)
 
 if __name__ == "__main__":
     base_dir = Path(__file__).parent.resolve()
