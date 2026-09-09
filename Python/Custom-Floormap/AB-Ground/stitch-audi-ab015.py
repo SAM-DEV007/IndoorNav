@@ -277,8 +277,6 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
         r_name = str(row["Room_ID"]).lower()
         r_idx = row.name
 
-        if "audi door" in r_name:
-            return False
         if "discussion" in r_name:
             return False
         if r_idx == first_rt_idx:
@@ -287,6 +285,8 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
             return False
 
         return True
+
+    unified_rooms = unified_rooms[~unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False)].copy()
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
