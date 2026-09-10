@@ -327,6 +327,21 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
         # Room Door Blocks
         ax.scatter(unified_rooms["Coords_X_rot"], unified_rooms["Coords_Y_rot"], color="#3498DB", marker="s", s=140, edgecolor="#2C3E50", linewidth=1.5, zorder=4, label="Rooms")
 
+        # Door markers sit just inside each room, toward the hallway.
+        room_to_path_x = unified_rooms["Coords_X_rot"] - unified_rooms["Trajectory_X_rot"]
+        room_to_path_y = unified_rooms["Coords_Y_rot"] - unified_rooms["Trajectory_Y_rot"]
+
+        room_to_path_distance = np.hypot(room_to_path_x, room_to_path_y)
+        valid_direction = room_to_path_distance > 0.01
+
+        door_x = unified_rooms["Coords_X_rot"].copy()
+        door_y = unified_rooms["Coords_Y_rot"].copy()
+
+        door_x.loc[valid_direction] += (-room_to_path_x.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
+        door_y.loc[valid_direction] += (-room_to_path_y.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
+
+        ax.scatter(door_x, door_y, color="purple", marker="o", s=60, edgecolor="white", linewidth=0.9, zorder=5, label="Entrances")
+
         # Outward Dynamic Label Placement
         for _, r in unified_rooms.iterrows():
             cx, cy = r["Coords_X_rot"], r["Coords_Y_rot"]
