@@ -56,6 +56,42 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
 
     return rooms_df
 
+def add_gate_rooms(rooms_df, dist_df):
+    rooms_df = rooms_df.copy()
+    gate_rows = []
+
+    gates = [
+        ("Front Gate", 0.0, 0.0, 0.0, 0.0, "BGFG", 1),
+    ]
+    back_gate = dist_df[(dist_df["Path_ID"] == "BGFG") & (dist_df["Step"] == 1)]
+    if not back_gate.empty:
+        row = back_gate.iloc[0]
+        gates.append(("Back Gate", row["X_m"], row["Y_m"], row["X_rot"], row["Y_rot"], "BGFG", 1))
+
+    for room_id, x, y, x_rot, y_rot, path_id, matched_step in gates:
+        if rooms_df["Room_ID"].eq(room_id).any():
+            continue
+        gate_rows.append({
+            "Room_ID": room_id,
+            "Time_s": "MANUAL",
+            "Matched_Step": matched_step,
+            "Brightness": "MANUAL",
+            "Direction": "",
+            "Trajectory_X": x,
+            "Trajectory_Y": y,
+            "Trajectory_X_rot": x_rot,
+            "Trajectory_Y_rot": y_rot,
+            "Coords_X_rot": x_rot,
+            "Coords_Y_rot": y_rot,
+            "Coords_X": x,
+            "Coords_Y": y,
+            "Path_ID": path_id,
+        })
+
+    if gate_rows:
+        rooms_df = pd.concat([rooms_df, pd.DataFrame(gate_rows)], ignore_index=True)
+    return rooms_df
+
 def dlhb_correct_rooms(path: Path, offset_m: float = 2.5):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
@@ -230,6 +266,7 @@ def generate_unified_floorplan(bgfg_dist_path, bgfg_rooms_path, dlhb_dist_path, 
     unified_rooms = pd.concat([bgfg_rooms, dlhb_rooms], ignore_index=True)
 
     unified_rooms = unified_rooms[~unified_rooms['Room_ID'].str.contains('corridor', case=False, na=False)].copy()
+    unified_rooms = add_gate_rooms(unified_rooms, unified_dist)
     unified_rooms = add_door_coordinates(unified_rooms)
 
     output_path = Path(output_dir)
