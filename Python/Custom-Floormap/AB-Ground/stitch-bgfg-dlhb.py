@@ -92,7 +92,18 @@ def add_gate_rooms(rooms_df, dist_df):
         rooms_df = pd.concat([rooms_df, pd.DataFrame(gate_rows)], ignore_index=True)
     return rooms_df
 
-def dlhb_correct_rooms(path: Path, offset_m: float = 2.5):
+def bgfg_correct_rooms(path):
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").copy()
+    
+    if rooms_df.loc[rooms_df["Room_ID"].eq("Reception"), "Direction"].eq("Right").all():
+        return # No correction needed if the Reception room is already "Right"
+
+    rooms_df = rooms_df.loc[~(rooms_df["Room_ID"].eq("Reception") & rooms_df["Direction"].str.lower().eq("left (both)"))].copy()
+    rooms_df.loc[rooms_df["Room_ID"].eq("Reception"), ["Direction"]] = "Right"
+
+    rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
+
+def dlhb_correct_rooms(path, offset_m = 2.5):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
 
@@ -134,8 +145,6 @@ def dlhb_correct_rooms(path: Path, offset_m: float = 2.5):
         [rooms_df, pd.DataFrame(new_rows)], ignore_index=True
     )
     corrected_rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
-
-    return corrected_rooms_df
 
 def process_data(path, reset_coords=False):
     # Reset coords is only for the S-BG-FG dataset
@@ -403,6 +412,7 @@ if __name__ == "__main__":
     bgfg_save_dir.mkdir(parents=True, exist_ok=True)
     dlhb_save_dir.mkdir(parents=True, exist_ok=True)
 
+    bgfg_correct_rooms(bgfg_dir) # Correct the room coordinates (Reception only in the left)
     bgfg_dist_df, bgfg_rooms_df = process_data(bgfg_dir, reset_coords=True)
 
     dlhb_correct_rooms(dlhb_dir) # Correct the room coordinates (AB022 and Lift)
