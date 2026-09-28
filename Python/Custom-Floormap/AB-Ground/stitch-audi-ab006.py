@@ -27,12 +27,18 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
         door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
         return np.round(door_x, 2), np.round(door_y, 2)
 
-    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
-        "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
-    )
-    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
-        "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
-    )
+    calculated_values = [
+        ("Door_X_rot", "Door_Y_rot", "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"),
+        ("Door_X", "Door_Y", "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"),
+    ]
+    for door_x_col, door_y_col, x_col, y_col, tx_col, ty_col in calculated_values:
+        calculated_x, calculated_y = door_position(x_col, y_col, tx_col, ty_col)
+        if door_x_col not in rooms_df:
+            rooms_df[door_x_col], rooms_df[door_y_col] = calculated_x, calculated_y
+        else:
+            missing = rooms_df[door_x_col].isna() | rooms_df[door_y_col].isna()
+            rooms_df.loc[missing, door_x_col] = calculated_x.loc[missing]
+            rooms_df.loc[missing, door_y_col] = calculated_y.loc[missing]
     return rooms_df
 
 def correct_room_names(path):
@@ -309,18 +315,8 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
         # Room Door Blocks
         ax.scatter(unified_rooms["Coords_X_rot"], unified_rooms["Coords_Y_rot"], color="#3498DB", marker="s", s=140, edgecolor="#2C3E50", linewidth=1.5, zorder=4, label="Rooms")
 
-        # Door markers sit just inside each room, toward the hallway.
-        room_to_path_x = unified_rooms["Coords_X_rot"] - unified_rooms["Trajectory_X_rot"]
-        room_to_path_y = unified_rooms["Coords_Y_rot"] - unified_rooms["Trajectory_Y_rot"]
-
-        room_to_path_distance = np.hypot(room_to_path_x, room_to_path_y)
-        valid_direction = room_to_path_distance > 0.01
-
-        door_x = unified_rooms["Coords_X_rot"].copy()
-        door_y = unified_rooms["Coords_Y_rot"].copy()
-
-        door_x.loc[valid_direction] += (-room_to_path_x.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
-        door_y.loc[valid_direction] += (-room_to_path_y.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
+        door_x = unified_rooms["Door_X_rot"]
+        door_y = unified_rooms["Door_Y_rot"]
 
         ax.scatter(door_x, door_y, color="purple", marker="o", s=60, edgecolor="white", linewidth=0.9, zorder=5, label="Entrances")
 

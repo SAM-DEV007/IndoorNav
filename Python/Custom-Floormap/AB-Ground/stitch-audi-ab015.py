@@ -24,12 +24,18 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
         door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
         return np.round(door_x, 2), np.round(door_y, 2)
 
-    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
-        "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
-    )
-    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
-        "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
-    )
+    calculated_values = [
+        ("Door_X_rot", "Door_Y_rot", "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"),
+        ("Door_X", "Door_Y", "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"),
+    ]
+    for door_x_col, door_y_col, x_col, y_col, tx_col, ty_col in calculated_values:
+        calculated_x, calculated_y = door_position(x_col, y_col, tx_col, ty_col)
+        if door_x_col not in rooms_df:
+            rooms_df[door_x_col], rooms_df[door_y_col] = calculated_x, calculated_y
+        else:
+            missing = rooms_df[door_x_col].isna() | rooms_df[door_y_col].isna()
+            rooms_df.loc[missing, door_x_col] = calculated_x.loc[missing]
+            rooms_df.loc[missing, door_y_col] = calculated_y.loc[missing]
     return rooms_df
 
 def process_data(path):
@@ -180,12 +186,24 @@ def shrink_ab017_in_memory(unified_dist_df, unified_rooms_df):
         if not step_rows.empty:
             tx_rot = step_rows.iloc[0]["X_rot"]
             ty_rot = step_rows.iloc[0]["Y_rot"]
+            old_coords_x = rooms_df.loc[r_i, "Coords_X_rot"]
+            old_coords_y = rooms_df.loc[r_i, "Coords_Y_rot"]
             dx = rooms_df.loc[r_i, "Coords_X_rot"] - rooms_df.loc[r_i, "Trajectory_X_rot"]
             dy = rooms_df.loc[r_i, "Coords_Y_rot"] - rooms_df.loc[r_i, "Trajectory_Y_rot"]
+            new_coords_x = np.round(tx_rot + dx, 2)
+            new_coords_y = np.round(ty_rot + dy, 2)
             rooms_df.loc[r_i, "Trajectory_X_rot"] = tx_rot
             rooms_df.loc[r_i, "Trajectory_Y_rot"] = ty_rot
-            rooms_df.loc[r_i, "Coords_X_rot"] = np.round(tx_rot + dx, 2)
-            rooms_df.loc[r_i, "Coords_Y_rot"] = np.round(ty_rot + dy, 2)
+            rooms_df.loc[r_i, "Coords_X_rot"] = new_coords_x
+            rooms_df.loc[r_i, "Coords_Y_rot"] = new_coords_y
+
+            if "Door_X_rot" in rooms_df.columns and "Door_Y_rot" in rooms_df.columns:
+                rooms_df.loc[r_i, "Door_X_rot"] = np.round(
+                    rooms_df.loc[r_i, "Door_X_rot"] + new_coords_x - old_coords_x, 2
+                )
+                rooms_df.loc[r_i, "Door_Y_rot"] = np.round(
+                    rooms_df.loc[r_i, "Door_Y_rot"] + new_coords_y - old_coords_y, 2
+                )
 
     merged_dist = pd.concat([other_dist, ab_dist], ignore_index=True)
     return merged_dist, rooms_df
@@ -311,8 +329,19 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
         return True
 
     # unified_rooms = unified_rooms[~unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False)].copy()
+    main_audi_mask = unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False)
+    audi_door_mask = new_rooms["Room_ID"].str.contains(r"audi door", case=False, na=False)
     cols = ["Coords_X_rot", "Coords_Y_rot"]
-    unified_rooms.loc[unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False), cols] = new_rooms.loc[new_rooms["Room_ID"].str.contains(r"audi door", case=False, na=False), cols].values
+    room_offset = (
+        new_rooms.loc[audi_door_mask, cols].iloc[0].to_numpy(float)
+        - unified_rooms.loc[main_audi_mask, cols].iloc[0].to_numpy(float)
+    )
+    unified_rooms.loc[main_audi_mask, cols] = new_rooms.loc[audi_door_mask, cols].values
+
+    door_cols = ["Door_X_rot", "Door_Y_rot"]
+    unified_rooms.loc[main_audi_mask, door_cols] = (
+        unified_rooms.loc[main_audi_mask, door_cols].to_numpy(float) + room_offset
+    )
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
@@ -350,18 +379,8 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
         # Room Door Blocks
         ax.scatter(unified_rooms["Coords_X_rot"], unified_rooms["Coords_Y_rot"], color="#3498DB", marker="s", s=140, edgecolor="#2C3E50", linewidth=1.5, zorder=4, label="Rooms")
 
-        # Door markers sit just inside each room, toward the hallway.
-        room_to_path_x = unified_rooms["Coords_X_rot"] - unified_rooms["Trajectory_X_rot"]
-        room_to_path_y = unified_rooms["Coords_Y_rot"] - unified_rooms["Trajectory_Y_rot"]
-
-        room_to_path_distance = np.hypot(room_to_path_x, room_to_path_y)
-        valid_direction = room_to_path_distance > 0.01
-
-        door_x = unified_rooms["Coords_X_rot"].copy()
-        door_y = unified_rooms["Coords_Y_rot"].copy()
-
-        door_x.loc[valid_direction] += (-room_to_path_x.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
-        door_y.loc[valid_direction] += (-room_to_path_y.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
+        door_x = unified_rooms["Door_X_rot"]
+        door_y = unified_rooms["Door_Y_rot"]
 
         ax.scatter(door_x, door_y, color="purple", marker="o", s=60, edgecolor="white", linewidth=0.9, zorder=5, label="Entrances")
 

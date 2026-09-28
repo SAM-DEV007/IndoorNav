@@ -25,12 +25,35 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
         door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
         return np.round(door_x, 2), np.round(door_y, 2)
 
-    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
+    calculated_rot_x, calculated_rot_y = door_position(
         "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
     )
-    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
+    calculated_x, calculated_y = door_position(
         "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
     )
+    has_saved_door_coordinates = (
+        all(column in rooms_df for column in ["Door_X_rot", "Door_Y_rot", "Door_X", "Door_Y"])
+        and rooms_df[["Door_X_rot", "Door_Y_rot", "Door_X", "Door_Y"]].notna().any().any()
+    )
+
+    for column, values in [
+        ("Door_X_rot", calculated_rot_x),
+        ("Door_Y_rot", calculated_rot_y),
+        ("Door_X", calculated_x),
+        ("Door_Y", calculated_y),
+    ]:
+        if column not in rooms_df:
+            rooms_df[column] = values
+        else:
+            rooms_df.loc[rooms_df[column].isna(), column] = values
+
+    if not has_saved_door_coordinates:
+        discussion_room = rooms_df["Room_ID"].eq("Discussion room")
+        rooms_df.loc[discussion_room, "Door_X_rot"] = rooms_df.loc[discussion_room, "Coords_X_rot"] + door_offset
+        rooms_df.loc[discussion_room, "Door_Y_rot"] = rooms_df.loc[discussion_room, "Coords_Y_rot"]
+        rooms_df.loc[discussion_room, "Door_X"] = rooms_df.loc[discussion_room, "Coords_X"] + door_offset
+        rooms_df.loc[discussion_room, "Door_Y"] = rooms_df.loc[discussion_room, "Coords_Y"]
+
     return rooms_df
 
 def dlhb_correct_rooms(path: Path, offset_m: float = 2.5):
@@ -241,18 +264,8 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
         # Room Door Blocks
         ax.scatter(unified_rooms['Coords_X_rot'], unified_rooms['Coords_Y_rot'], color='#3498DB', marker='s', s=140, edgecolor='#2C3E50', linewidth=1.5, zorder=4, label='Rooms')
 
-        # Door markers sit just inside each room, toward the hallway.
-        room_to_path_x = unified_rooms["Coords_X_rot"] - unified_rooms["Trajectory_X_rot"]
-        room_to_path_y = unified_rooms["Coords_Y_rot"] - unified_rooms["Trajectory_Y_rot"]
-
-        room_to_path_distance = np.hypot(room_to_path_x, room_to_path_y)
-        valid_direction = room_to_path_distance > 0.01
-
-        door_x = unified_rooms["Coords_X_rot"].copy()
-        door_y = unified_rooms["Coords_Y_rot"].copy()
-
-        door_x.loc[valid_direction] += (-room_to_path_x.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
-        door_y.loc[valid_direction] += (-room_to_path_y.loc[valid_direction] / room_to_path_distance.loc[valid_direction] * 1.1)
+        door_x = unified_rooms["Door_X_rot"]
+        door_y = unified_rooms["Door_Y_rot"]
 
         ax.scatter(door_x, door_y, color="purple", marker="o", s=60, edgecolor="white", linewidth=0.9, zorder=5, label="Entrances")
 
