@@ -14,6 +14,28 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
+def add_door_coordinates(rooms_df, door_offset=1.1):
+    rooms_df = rooms_df.copy()
+
+    def door_position(x_col, y_col, tx_col, ty_col):
+        vx = rooms_df[x_col] - rooms_df[tx_col]
+        vy = rooms_df[y_col] - rooms_df[ty_col]
+        distance = np.hypot(vx, vy)
+        valid = distance > 0.01
+        door_x = rooms_df[x_col].copy()
+        door_y = rooms_df[y_col].copy()
+        door_x.loc[valid] -= vx.loc[valid] / distance.loc[valid] * door_offset
+        door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
+        return np.round(door_x, 2), np.round(door_y, 2)
+
+    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
+        "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
+    )
+    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
+        "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
+    )
+    return rooms_df
+
 def ab015_correct_washrooms(path, offset_m = 2.5):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
@@ -176,6 +198,7 @@ def generate_unified_floorplan(ab017_dist_path, ab017_rooms_path, unified_dist_p
     # Filter corridor markers from the new rooms file and merge
     ab017_rooms_clean = ab017_rooms[~ab017_rooms['Room_ID'].str.contains('corridor', case=False, na=False)].copy()
     final_unified_rooms = pd.concat([unified_rooms, ab017_rooms_clean], ignore_index=True)
+    final_unified_rooms = add_door_coordinates(final_unified_rooms)
 
     # Save updated unified datasets
     output_path = Path(output_dir)
@@ -285,11 +308,11 @@ def render_floorplan(unified_dist, unified_rooms, output_path):
 
 def save_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "fp_rooms.csv", index=False)
 
 def save_stitched_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "stitched_fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "stitched_fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "stitched_fp_rooms.csv", index=False)
 
 if __name__ == "__main__":
     raw_dir = Path(__file__).parent.resolve() / "Raw"

@@ -13,6 +13,28 @@ def rotate_points(x_pos, y_pos, theta):
 
     return x_rot, y_rot
 
+def add_door_coordinates(rooms_df, door_offset=1.1):
+    rooms_df = rooms_df.copy()
+
+    def door_position(x_col, y_col, tx_col, ty_col):
+        vx = rooms_df[x_col] - rooms_df[tx_col]
+        vy = rooms_df[y_col] - rooms_df[ty_col]
+        distance = np.hypot(vx, vy)
+        valid = distance > 0.01
+        door_x = rooms_df[x_col].copy()
+        door_y = rooms_df[y_col].copy()
+        door_x.loc[valid] -= vx.loc[valid] / distance.loc[valid] * door_offset
+        door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
+        return np.round(door_x, 2), np.round(door_y, 2)
+
+    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
+        "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
+    )
+    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
+        "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
+    )
+    return rooms_df
+
 def correct_room_names(path):
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv")
 
@@ -93,11 +115,11 @@ def process_data(path, target_room_offset=2.50):
 
 def save_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "fp_rooms.csv", index=False)
 
 def save_stitched_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "stitched_fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "stitched_fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "stitched_fp_rooms.csv", index=False)
 
 def stitch_floorplan(unified_dist_df, unified_rooms_df, new_dist_df, new_rooms_df, start_path_id="BANK", start_landmark=r"right.*corridor", end_landmark=r"ab\s*003"):
     dist_df = new_dist_df.copy()
@@ -253,6 +275,7 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
+    unified_rooms_new = add_door_coordinates(unified_rooms_new)
 
     unified_dist_new = calculate_cumulative_distance_rot(unified_dist_new)
 
@@ -370,7 +393,7 @@ def remove_useless_columns(dist_path, rooms_path):
     rooms_df = pd.read_csv(rooms_path)
 
     dist_df.drop(columns=["Seconds_Elapsed", "Stride_Length_m", "Speed_m_s", "Cumulative_Distance_m", "X_m", "Y_m", "Cadence_Adaptive_Constant_K"], inplace=True, errors="ignore")
-    rooms_df.drop(columns=["Time_s", "Brightness", "Trajectory_X", "Trajectory_Y", "Coords_X", "Coords_Y"], inplace=True, errors="ignore")
+    rooms_df.drop(columns=["Time_s", "Brightness", "Trajectory_X", "Trajectory_Y", "Coords_X", "Coords_Y", "Door_X", "Door_Y"], inplace=True, errors="ignore")
 
     dist_df.to_csv(dist_path, index=False)
     rooms_df.to_csv(rooms_path, index=False)

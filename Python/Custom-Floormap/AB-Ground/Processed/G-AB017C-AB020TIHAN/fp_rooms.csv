@@ -1,5 +1,5 @@
-Room_ID,Time_s,Matched_Step,Brightness,Direction,Trajectory_X,Trajectory_Y,Trajectory_X_rot,Trajectory_Y_rot,Coords_X_rot,Coords_Y_rot,Coords_X,Coords_Y
-AB017 Cabin,8.001,4,0.9094488024711608,Right,2.8,-0.17,1.14,-2.56,-1.13,-3.58,2.65,-2.66
-AB018 B - Gents Washroom,20.009999755859376,24,0.4448818862438202,Left,16.99,-2.25,5.87,-16.1,8.24,-15.33,17.4,0.22
-AB019 Cabin,34.023,49,0.8543307185173035,Left,34.01,-7.52,9.07,-33.63,11.56,-33.46,35.01,-5.23
-AB018 A - Ladies Washroom,MANUAL,21,MANUAL,Left,14.94,-1.86,5.26,-14.11,7.65,-13.36,15.38,0.6
+Room_ID,Time_s,Matched_Step,Brightness,Direction,Trajectory_X,Trajectory_Y,Trajectory_X_rot,Trajectory_Y_rot,Coords_X_rot,Coords_Y_rot,Coords_X,Coords_Y,Door_X_rot,Door_Y_rot,Door_X,Door_Y
+AB017 Cabin,8.001,4,0.9094488024711608,Right,2.8,-0.17,1.14,-2.56,-1.13,-3.58,2.65,-2.66,-0.13,-3.13,2.72,-1.56
+AB018 B - Gents Washroom,20.009999755859376,24,0.4448818862438202,Left,16.99,-2.25,5.87,-16.1,8.24,-15.33,17.4,0.22,7.19,-15.67,17.22,-0.87
+AB019 Cabin,34.023,49,0.8543307185173035,Left,34.01,-7.52,9.07,-33.63,11.56,-33.46,35.01,-5.23,10.46,-33.53,34.57,-6.24
+AB018 A - Ladies Washroom,MANUAL,21,MANUAL,Left,14.94,-1.86,5.26,-14.11,7.65,-13.36,15.38,0.6,6.6,-13.69,15.19,-0.48

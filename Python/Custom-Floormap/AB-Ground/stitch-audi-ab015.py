@@ -10,6 +10,28 @@ def rotate_points(x_pos, y_pos, theta):
     y_rot = x_pos * np.sin(theta) + y_pos * np.cos(theta)
     return x_rot, y_rot
 
+def add_door_coordinates(rooms_df, door_offset=1.1):
+    rooms_df = rooms_df.copy()
+
+    def door_position(x_col, y_col, tx_col, ty_col):
+        vx = rooms_df[x_col] - rooms_df[tx_col]
+        vy = rooms_df[y_col] - rooms_df[ty_col]
+        distance = np.hypot(vx, vy)
+        valid = distance > 0.01
+        door_x = rooms_df[x_col].copy()
+        door_y = rooms_df[y_col].copy()
+        door_x.loc[valid] -= vx.loc[valid] / distance.loc[valid] * door_offset
+        door_y.loc[valid] -= vy.loc[valid] / distance.loc[valid] * door_offset
+        return np.round(door_x, 2), np.round(door_y, 2)
+
+    rooms_df["Door_X_rot"], rooms_df["Door_Y_rot"] = door_position(
+        "Coords_X_rot", "Coords_Y_rot", "Trajectory_X_rot", "Trajectory_Y_rot"
+    )
+    rooms_df["Door_X"], rooms_df["Door_Y"] = door_position(
+        "Coords_X", "Coords_Y", "Trajectory_X", "Trajectory_Y"
+    )
+    return rooms_df
+
 def process_data(path):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv")
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv")
@@ -59,11 +81,11 @@ def process_data(path):
 
 def save_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "fp_rooms.csv", index=False)
 
 def save_stitched_data(dist_df, rooms_df, path):
     dist_df.to_csv(path / "stitched_fp_distance.csv", index=False)
-    rooms_df.to_csv(path / "stitched_fp_rooms.csv", index=False)
+    add_door_coordinates(rooms_df).to_csv(path / "stitched_fp_rooms.csv", index=False)
 
 def shrink_ab017_in_memory(unified_dist_df, unified_rooms_df):
     # Applies the step cuts (30-35 and 50-55) to the AB017 partition entirely in memory.
@@ -294,6 +316,7 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
+    unified_rooms_new = add_door_coordinates(unified_rooms_new)
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
