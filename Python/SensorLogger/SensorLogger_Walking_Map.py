@@ -582,10 +582,10 @@ def save_logs(pdr_df, landmarks_df, turns_df, rooms_df, output_data_save):
 
 if __name__ == '__main__':
     # Folders
-    parent_folder_path = Path(__file__).parent.resolve()
+    parent_folder_path = Path(__file__).parent.parent.resolve()
     dataset_folder = parent_folder_path / "SensorLogger"
 
-    save_folder = parent_folder_path / "Output"
+    save_folder = parent_folder_path / "SensorLogger-Output"
 
     input_data_name = "2026-09-06_07-51-12"
     input_data_path = dataset_folder / input_data_name
