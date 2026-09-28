@@ -273,8 +273,27 @@ def generate_unified_floorplan(bgfg_dist_path, bgfg_rooms_path, dlhb_dist_path, 
     output_path.mkdir(parents=True, exist_ok=True)
     unified_dist.to_csv(output_path / "unified_fp_distance_1.csv", index=False)
     unified_rooms.to_csv(output_path / "unified_fp_rooms_1.csv", index=False)
+    save_intersections(unified_dist, output_path)
 
     return unified_dist, unified_rooms
+
+def save_intersections(dist_df, output_dir, version=1):
+    intersection_columns = [
+        "Intersection_ID",
+        "Path_ID",
+        "Step",
+        "X_rot",
+        "Y_rot",
+        "Connected_Path",
+        "Connected_Step",
+    ]
+    intersections = dist_df.loc[
+        dist_df["Is_Intersection"].eq(True), intersection_columns
+    ].drop_duplicates(subset=["Intersection_ID"]).copy()
+    intersections[["X_rot", "Y_rot"]] = intersections[["X_rot", "Y_rot"]].round(2)
+    intersections.to_csv(
+        output_dir / f"unified_fp_intersections_{version}.csv", index=False
+    )
 
 def render_floorplan(unified_dist, unified_rooms, output_path):
     back_gate = unified_dist[(unified_dist['Path_ID'] == 'BGFG') & (unified_dist['Step'] == 1)]

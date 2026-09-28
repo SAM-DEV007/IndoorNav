@@ -228,6 +228,24 @@ def detect_and_stitch_intersections(dist_df, dist_threshold=1.5, fixed_path_id="
 
     return dist_df
 
+def save_intersections(dist_df, output_dir, version=4):
+    intersection_columns = [
+        "Intersection_ID",
+        "Path_ID",
+        "Step",
+        "X_rot",
+        "Y_rot",
+        "Connected_Path",
+        "Connected_Step",
+    ]
+    intersections = dist_df.loc[
+        dist_df["Is_Intersection"].eq(True), intersection_columns
+    ].drop_duplicates(subset=["Intersection_ID"]).copy()
+    intersections[["X_rot", "Y_rot"]] = intersections[["X_rot", "Y_rot"]].round(2)
+    intersections.to_csv(
+        output_dir / f"unified_fp_intersections_{version}.csv", index=False
+    )
+
 def calculate_cumulative_distance_rot(dist_df):
     df = dist_df.copy()
     cum_dist = pd.Series(0.0, index=df.index, dtype=float)
@@ -287,6 +305,7 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
 
     unified_dist_new.to_csv(output_dir / "unified_fp_distance_4.csv", index=False)
     unified_rooms_new.to_csv(output_dir / "unified_fp_rooms_4.csv", index=False)
+    save_intersections(unified_dist_new, output_dir)
 
     return unified_dist_new, unified_rooms_new
 
@@ -397,16 +416,19 @@ def remove_useless_columns(dist_path, rooms_path):
 def transfer_final_data(source_dir, target_dir):
     source_dist_path = source_dir / "unified_fp_distance_4.csv"
     source_rooms_path = source_dir / "unified_fp_rooms_4.csv"
+    source_intersections_path = source_dir / "unified_fp_intersections_4.csv"
     source_floorplan_path = source_dir / "floorplan_4.png"
     source_floorplan_coords_path = source_dir / "floorplan_coords_4.png"
 
     target_dist_path = target_dir / "ab_ground_unified_fp_distance.csv"
     target_rooms_path = target_dir / "ab_ground_unified_fp_rooms.csv"
+    target_intersections_path = target_dir / "ab_ground_unified_fp_intersections.csv"
     target_floorplan_path = target_dir / "ab_ground_floorplan.png"
     target_floorplan_coords_path = target_dir / "ab_ground_floorplan_coords.png"
 
     shutil.copy2(source_dist_path, target_dist_path)
     shutil.copy2(source_rooms_path, target_rooms_path)
+    shutil.copy2(source_intersections_path, target_intersections_path)
     shutil.copy2(source_floorplan_path, target_floorplan_path)
     shutil.copy2(source_floorplan_coords_path, target_floorplan_coords_path)
 

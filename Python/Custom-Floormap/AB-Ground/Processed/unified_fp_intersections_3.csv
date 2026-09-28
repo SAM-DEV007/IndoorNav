@@ -1,0 +1,5 @@
+Intersection_ID,Path_ID,Step,X_rot,Y_rot,Connected_Path,Connected_Step
+Junction_2,BGFG,17,-15.11,47.84,AUDI,58
+Junction_1,BGFG,85,-3.08,10.7,DLHB,83
+Junction_3,DLHB,132,25.68,13.75,AB017,60
+Junction_4,AB017,1,18.8,54.63,AUDI,110
