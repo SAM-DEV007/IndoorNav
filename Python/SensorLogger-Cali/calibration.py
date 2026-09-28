@@ -106,9 +106,8 @@ if __name__ == '__main__':
     
     # Folders
     parent_folder_path = Path(__file__).parent.resolve()
-    dataset_folder = parent_folder_path / "SensorLogger-Cali"
     input_data_name = "2026-09-06_06-04-41"
-    input_data_path = dataset_folder / input_data_name
+    input_data_path = parent_folder_path / input_data_name
 
     # Load Data (Assuming a straight line walk)
     acc = pd.read_csv(input_data_path / "Accelerometer.csv").sort_values('seconds_elapsed').reset_index(drop=True)
