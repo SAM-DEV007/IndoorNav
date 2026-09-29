@@ -345,7 +345,7 @@ def add_edge_weights(G, final_pos):
 
 
 def create_save_weighted_graph(rooms_df, intersections_df, output_dir):
-    rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
+    _, _, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
     
     final_edges = main_edges + room_edges
     final_pos = connection_pos | junction_pos | rooms_pos
@@ -364,7 +364,7 @@ def create_save_weighted_graph(rooms_df, intersections_df, output_dir):
 
 def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
     G = nx.Graph()
-    rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
+    _, _, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
 
     final_edges = main_edges + room_edges
     final_pos = connection_pos | junction_pos | rooms_pos
@@ -378,6 +378,16 @@ def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
     plot_graph(output_dir / "ab_ground_unweighted")
 
 
+def save_ids(rooms_df, intersections_df, output_dir):
+    rooms_id, connection_id, _, _, _, _, _ = edges(rooms_df, intersections_df)
+
+    rooms_id_df = pd.DataFrame(list(rooms_id.items()), columns=["Room_ID", "Room_Name"])
+    rooms_id_df.to_csv(output_dir / "ab_ground_rooms_id.csv", index=False)
+
+    connection_id_df = pd.DataFrame(list(connection_id.items()), columns=["Connection_ID", "Connection_Name"])
+    connection_id_df.to_csv(output_dir / "ab_ground_connections_id.csv", index=False)
+
+
 if __name__ == "__main__":
     main_dir = Path(__file__).parent.parent.parent.resolve()
 
@@ -389,6 +399,8 @@ if __name__ == "__main__":
 
     intersections_info = floorplan_dir / "ab_ground_unified_fp_intersections.csv"
     intersections_df = pd.read_csv(intersections_info)
+
+    save_ids(rooms_df, intersections_df, output_dir)
 
     create_save_unweighted_graph(rooms_df, intersections_df, output_dir)
     create_save_weighted_graph(rooms_df, intersections_df, output_dir)
