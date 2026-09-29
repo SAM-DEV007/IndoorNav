@@ -46,6 +46,15 @@ def edges(rooms_df, intersections_df):
         29: "Ab 022 cabins",
         30: "Lift",
 
+        # Audi corridor
+        31: "Ab011 music room",
+        32: "Stair",
+        33: "Audi backdoor",
+        34: "Lift",
+        35: "Ab013 board room",
+        36: "Ab014 audi 2",
+        37: "Stairs",
+        38: "Ab015 dsw office",
     }
 
     connection_id = {
@@ -79,6 +88,16 @@ def edges(rooms_df, intersections_df):
         125: "SRT",
         126: "AB022LT",
 
+        # Audi corridor
+        127: "Junction_6",
+        128: "AB011T",
+        129: "ABST",
+        130: "LT",
+        131: "AB013BT",
+        132: "AB014T",
+        133: "Junction_5",
+        134: "ST",
+        135: "AB015T",
     }
 
     main_edges = [
@@ -112,6 +131,17 @@ def edges(rooms_df, intersections_df):
         (123, 124),
         (124, 125),
         (125, 126),
+
+        # Audi corridor
+        (112, 127),
+        (127, 128),
+        (128, 129),
+        (129, 130),
+        (112, 131),
+        (131, 132),
+        (132, 133),
+        (133, 134),
+        (134, 135),
     ]
 
     room_edges = [
@@ -146,6 +176,16 @@ def edges(rooms_df, intersections_df):
         (125, 28),
         (126, 29),
         (126, 30),
+
+        # Audi corridor
+        (128, 31),
+        (129, 32),
+        (129, 33),
+        (130, 34),
+        (131, 35),
+        (132, 36),
+        (134, 37),
+        (135, 38),
     ]
 
     # Manual positions to deal with same names
@@ -158,6 +198,9 @@ def edges(rooms_df, intersections_df):
         23: rooms_df.iloc[12].values[3:5],
         28: rooms_df.iloc[25].values[3:5],
         30: rooms_df.iloc[26].values[3:5],
+        32: rooms_df.iloc[36].values[3:5],
+        34: rooms_df.iloc[34].values[3:5],
+        37: rooms_df.iloc[40].values[3:5],
     }
 
     traj_manual_pos = {
@@ -174,6 +217,9 @@ def edges(rooms_df, intersections_df):
         23: rooms_df.iloc[12].values[1:3],
         28: rooms_df.iloc[25].values[1:3],
         30: rooms_df.iloc[26].values[1:3],
+        32: rooms_df.iloc[36].values[1:3],
+        34: rooms_df.iloc[34].values[1:3],
+        37: rooms_df.iloc[40].values[1:3],
     }
 
     connection_pos = {
