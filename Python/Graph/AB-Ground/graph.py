@@ -199,7 +199,10 @@ def edges(rooms_df, intersections_df):
         for room_id, room_name in rooms_id.items()
     }
 
-    return main_edges + room_edges, rooms_id, connection_id, connection_pos | junction_pos | rooms_pos
+    final_edges = main_edges + room_edges
+    final_pos = connection_pos | junction_pos | rooms_pos
+
+    return final_edges, rooms_id, connection_id, final_pos
 
 
 if __name__ == "__main__":
