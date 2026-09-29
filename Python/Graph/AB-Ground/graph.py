@@ -305,6 +305,21 @@ def edges(rooms_df, intersections_df):
     return rooms_id, connection_id, final_edges, final_pos
 
 
+def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
+    G = nx.Graph()
+    rooms_id, connection_id, all_edges, pos = edges(rooms_df, intersections_df)
+
+    G.add_edges_from(all_edges)
+
+    plt.figure(figsize=(12, 8))
+    
+    nx.draw(G, pos=pos, with_labels=True, node_size=100, font_size=5, font_color="black", node_color="lightblue", edge_color="gray")
+    
+    plt.title("AB-Ground Unweighted Graph")
+    plt.savefig(output_dir / "ab_ground_unweighted_graph.png", dpi=300)
+    plt.close()
+
+
 if __name__ == "__main__":
     main_dir = Path(__file__).parent.parent.parent.resolve()
 
@@ -317,10 +332,4 @@ if __name__ == "__main__":
     intersections_info = floorplan_dir / "ab_ground_unified_fp_intersections.csv"
     intersections_df = pd.read_csv(intersections_info)
 
-    G = nx.Graph()
-    rooms_id, connection_id, edges, pos = edges(rooms_df, intersections_df)
-
-    G.add_edges_from(edges)
-
-    nx.draw(G, pos=pos, with_labels=True, node_size=500, font_size=8, font_color="black", node_color="lightblue", edge_color="gray")
-    plt.show()
+    create_save_unweighted_graph(rooms_df, intersections_df, output_dir)
