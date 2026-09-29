@@ -62,6 +62,12 @@ def edges(rooms_df, intersections_df):
         41: "AB008 Storage",
         42: "AB007 Computer Science",
         43: "AB006 Bank",
+
+        # Right corridor
+        44: "AB019 Cabin",
+        45: "AB018 B - Gents Washroom",
+        46: "AB018 A - Ladies Washroom",
+        47: "AB017 Cabin",
     }
 
     connection_id = {
@@ -112,6 +118,12 @@ def edges(rooms_df, intersections_df):
         138: "AB008T",
         139: "AB007T",
         140: "AB006T",
+
+        # Right corridor
+        141: "AB019T",
+        142: "AB018BT",
+        143: "AB018AT",
+        144: "AB017T",
     }
 
     main_edges = [
@@ -163,6 +175,14 @@ def edges(rooms_df, intersections_df):
         (137, 138),
         (138, 139),
         (139, 140),
+        (140, 117),
+
+        # Right corridor
+        (123, 141),
+        (141, 142),
+        (142, 143),
+        (143, 144),
+        (144, 133),
     ]
 
     room_edges = [
@@ -214,6 +234,12 @@ def edges(rooms_df, intersections_df):
         (138, 41),
         (139, 42),
         (140, 43),
+
+        # Right corridor
+        (141, 44),
+        (142, 45),
+        (143, 46),
+        (144, 47),
     ]
 
     # Manual positions to deal with same names
