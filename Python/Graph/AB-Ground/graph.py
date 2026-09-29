@@ -299,21 +299,21 @@ def edges(rooms_df, intersections_df):
         for room_id, room_name in rooms_id.items()
     }
 
-    final_edges = main_edges + room_edges
-    final_pos = connection_pos | junction_pos | rooms_pos
-
-    return rooms_id, connection_id, final_edges, final_pos
+    return rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos
 
 
 def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
     G = nx.Graph()
-    rooms_id, connection_id, all_edges, pos = edges(rooms_df, intersections_df)
+    rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
 
-    G.add_edges_from(all_edges)
+    final_edges = main_edges + room_edges
+    final_pos = connection_pos | junction_pos | rooms_pos
+
+    G.add_edges_from(final_edges)
 
     plt.figure(figsize=(12, 8))
-    
-    nx.draw(G, pos=pos, with_labels=True, node_size=100, font_size=5, font_color="black", node_color="lightblue", edge_color="gray")
+
+    nx.draw(G, pos=final_pos, with_labels=True, node_size=100, font_size=5, font_color="black", node_color="lightblue", edge_color="gray")
     
     plt.title("AB-Ground Unweighted Graph")
     plt.savefig(output_dir / "ab_ground_unweighted_graph.png", dpi=300)
