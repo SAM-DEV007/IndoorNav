@@ -359,7 +359,7 @@ def create_save_weighted_graph(rooms_df, intersections_df, output_dir):
         G.nodes[node]["pos_y"] = float(y)
 
     nx.write_graphml(G, output_dir / "ab_ground_weighted.graphml")
-    plot_graph(output_dir / "ab_ground_weighted")
+    plot_graph(output_dir / "ab_ground_weighted", weighted=True)
 
 
 def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
