@@ -302,6 +302,42 @@ def edges(rooms_df, intersections_df):
     return rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos
 
 
+def add_edge_weights(G, final_pos):
+    # Add weights to edges based on Euclidean distance
+    for edge in G.edges():
+        node1, node2 = edge
+
+        pos1 = final_pos[node1]
+        pos2 = final_pos[node2]
+
+        weight = np.linalg.norm(pos1 - pos2)
+        G.edges[edge]['weight'] = np.round(weight, 2)
+
+    return G
+
+
+def create_save_weighted_graph(rooms_df, intersections_df, output_dir):
+    rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
+    
+    final_edges = main_edges + room_edges
+    final_pos = connection_pos | junction_pos | rooms_pos
+
+    G = nx.Graph()
+    G.add_edges_from(final_edges)
+
+    G = add_edge_weights(G, final_pos) # Add weights to edges
+
+    plt.figure(figsize=(12, 8))
+    nx.draw(G, pos=final_pos, with_labels=True, node_size=100, font_size=5, font_color="black", node_color="lightblue", edge_color="gray")
+
+    edge_labels = nx.get_edge_attributes(G, 'weight')
+    nx.draw_networkx_edge_labels(G, pos=final_pos, edge_labels=edge_labels, font_size=5, font_color="black")
+
+    plt.title("AB-Ground Weighted Graph")
+    plt.savefig(output_dir / "ab_ground_weighted_graph.png", dpi=300)
+    plt.close()
+
+
 def create_save_unweighted_graph(rooms_df, intersections_df, output_dir):
     G = nx.Graph()
     rooms_id, connection_id, main_edges, room_edges, connection_pos, junction_pos, rooms_pos = edges(rooms_df, intersections_df)
@@ -333,3 +369,4 @@ if __name__ == "__main__":
     intersections_df = pd.read_csv(intersections_info)
 
     create_save_unweighted_graph(rooms_df, intersections_df, output_dir)
+    create_save_weighted_graph(rooms_df, intersections_df, output_dir)
