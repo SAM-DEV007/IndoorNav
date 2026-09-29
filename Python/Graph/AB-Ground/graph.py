@@ -302,7 +302,7 @@ def edges(rooms_df, intersections_df):
     final_edges = main_edges + room_edges
     final_pos = connection_pos | junction_pos | rooms_pos
 
-    return final_edges, rooms_id, connection_id, final_pos
+    return rooms_id, connection_id, final_edges, final_pos
 
 
 if __name__ == "__main__":
@@ -318,9 +318,9 @@ if __name__ == "__main__":
     intersections_df = pd.read_csv(intersections_info)
 
     G = nx.Graph()
-    edges, rooms, connections, pos = edges(rooms_df, intersections_df)
+    rooms_id, connection_id, edges, pos = edges(rooms_df, intersections_df)
 
     G.add_edges_from(edges)
 
-    nx.draw(G, pos=pos, with_labels=True)
+    nx.draw(G, pos=pos, with_labels=True, node_size=500, font_size=8, font_color="black", node_color="lightblue", edge_color="gray")
     plt.show()
