@@ -100,10 +100,13 @@ def room_label_layout(room_id, graph, positions):
 
 def get_echarts_options(graph, positions, rooms, route, origin, destination):
     all_x, all_y = zip(*positions.values())
-    padding = 8
+    x_span = max(all_x) - min(all_x)
+    y_span = max(all_y) - min(all_y)
+    x_pad = x_span * 0.08
+    y_pad = y_span * 0.08
 
-    min_x, max_x = min(all_x) - padding, max(all_x) + padding
-    min_y, max_y = min(all_y) - padding, max(all_y) + padding
+    min_x, max_x = min(all_x) - x_pad, max(all_x) + x_pad
+    min_y, max_y = min(all_y) - y_pad, max(all_y) + y_pad
 
     series = []
 
@@ -115,20 +118,32 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 
     # Base Walkable Paths (without the node circles)
     series.append({
-        "name": "Walkable path",
-        "type": "lines",
-        "coordinateSystem": "cartesian2d",
-        "data": base_lines,
-        "lineStyle": {"color": "#aebabc", "width": 15},
-        "silent": False,
-        "tooltip": {"show": False}
-    })
+		"name": "Walkable path",
+		"type": "lines",
+		"coordinateSystem": "cartesian2d",
+		"data": base_lines,
+		"lineStyle": {
+			"color": "#aebabc",
+			"width": 15,
+			"cap": "round",
+			"join": "round"
+		},
+		"clip": False,
+		"silent": False,
+		"tooltip": {"show": False}
+	})
 
     series.append({
         "type": "lines",
         "coordinateSystem": "cartesian2d",
         "data": base_lines,
-        "lineStyle": {"color": "#edf1ee", "width": 9},
+        "lineStyle": {
+            "color": "#edf1ee",
+            "width": 9,
+            "cap": "round",
+            "join": "round"
+        },
+        "clip": False,
         "silent": False,
         "tooltip": {"show": False}
     })
@@ -238,46 +253,46 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     })
 
     options = {
-        "backgroundColor": "#fbfaf6",
-        "grid": {"left": 10, "right": 10, "top": 40, "bottom": 10},
-        "legend": {
-            "data": ["Rooms", "Gates", "Start", "Destination"],
-            "top": 0,
-            "left": 10,
-            "textStyle": {"color": "#263238", "fontSize": 12},
-            "itemGap": 15
-        },
-        "xAxis": {
-            "show": False,
-            "type": "value",
-            "min": min_x,
-            "max": max_x,
-            "scale": True
-        },
-        "yAxis": {
-            "show": False,
-            "type": "value",
-            "min": min_y,
-            "max": max_y,
-            "scale": True
-        },
-        "tooltip": {
-            "show": True,
-            "trigger": "item",
-            "formatter": "{b}"
-        },
-        "dataZoom": [
-            {
-                "type": "inside",
-                "xAxisIndex": 0,
-                "yAxisIndex": 0,
-                "zoomOnMouseWheel": True,
-                "moveOnMouseMove": True
-            }
-        ],
-        "series": series,
-        "animation": False
-    }
+		"backgroundColor": "#fbfaf6",
+		"grid": {"left": 40, "right": 40, "top": 60, "bottom": 30},
+		"legend": {
+			"data": ["Rooms", "Gates", "Start", "Destination"],
+			"top": 0,
+			"left": 10,
+			"textStyle": {"color": "#263238", "fontSize": 12},
+			"itemGap": 15
+		},
+		"xAxis": {
+			"show": False,
+			"type": "value",
+			"min": min_x,
+			"max": max_x,
+			"scale": True
+		},
+		"yAxis": {
+			"show": False,
+			"type": "value",
+			"min": min_y,
+			"max": max_y,
+			"scale": True
+		},
+		"tooltip": {
+			"show": True,
+			"trigger": "item",
+			"formatter": "{b}"
+		},
+		"dataZoom": [
+			{
+				"type": "inside",
+				"xAxisIndex": 0,
+				"yAxisIndex": 0,
+				"zoomOnMouseWheel": True,
+				"moveOnMouseMove": True
+			}
+		],
+		"series": series,
+		"animation": False
+	}
 
     return options
 
