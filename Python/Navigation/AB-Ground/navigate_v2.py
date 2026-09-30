@@ -150,12 +150,18 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         })
 
     room_records = rooms[~rooms.Room_ID.isin([1, 15])]
-    room_data = []
+    room_boxes = []
+    room_labels = []
     for row in room_records.itertuples(index=False):
         x, y = positions[int(row.Room_ID)]
         layout = room_label_layout(int(row.Room_ID), graph, positions)
         text = wrap_label(str(row.Room_Name))
-        room_data.append({
+        room_boxes.append({
+            "value": [x, y],
+            "roomId": int(row.Room_ID),
+            "name": row.Room_Name
+        })
+        room_labels.append({
             "value": [x, y],
             "roomId": int(row.Room_ID),
             "name": row.Room_Name,
@@ -178,11 +184,36 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "symbol": "rect",
         "symbolSize": 10,
         "itemStyle": {"color": "#2f8fbd", "borderColor": "#17465d", "borderWidth": 1},
-        "data": room_data,
+        "data": room_boxes,
         "z": 20
     })
 
-    gate_data = [
+    series.append({
+        "name": "Room names",
+        "type": "scatter",
+        "symbol": "rect",
+        "symbolSize": 0,
+        "itemStyle": {"color": "#2f8fbd"},
+        "data": room_labels,
+        "z": 21
+    })
+
+    gate_boxes = [
+        {
+            "value": [positions[1][0], positions[1][1]],
+            "roomId": 1,
+            "name": "Front Gate",
+            "itemStyle": {"color": "#e63946"}
+        },
+        {
+            "value": [positions[15][0], positions[15][1]],
+            "roomId": 15,
+            "name": "Back Gate",
+            "itemStyle": {"color": "#111111"}
+        }
+    ]
+
+    gate_labels = [
         {
             "value": [positions[1][0], positions[1][1]],
             "roomId": 1,
@@ -195,8 +226,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": 9
-            },
-            "itemStyle": {"color": "#e63946"}
+            }
         },
         {
             "value": [positions[15][0], positions[15][1]],
@@ -210,32 +240,41 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": 9
-            },
-            "itemStyle": {"color": "#111111"}
+            }
         }
     ]
+
     series.append({
         "name": "Gates",
         "type": "scatter",
         "symbol": "circle",
         "symbolSize": 15,
         "itemStyle": {"borderColor": "#202a2e", "borderWidth": 2},
-        "data": gate_data,
+        "data": gate_boxes,
         "z": 20
     })
 
+    series.append({
+        "name": "Gate names",
+        "type": "scatter",
+        "symbol": "circle",
+        "symbolSize": 0,
+        "itemStyle": {"color": "#202a2e"},
+        "data": gate_labels,
+        "z": 21
+    })
+
     marker_data = []
-    for room_id, color in ((origin, "#ffffff"), (destination, "#2ca25f")):
-        if int(room_id) in (1, 15):
-            continue
+    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 15)):
         x, y = positions[int(room_id)]
         marker_data.append({
             "value": [x, y],
+            "symbolSize": size,
             "itemStyle": {"color": color, "borderColor": "#202a2e", "borderWidth": 2}
         })
+
     series.append({
         "type": "scatter",
-        "symbolSize": 10,
         "data": marker_data,
         "z": 30,
         "silent": True,
@@ -246,7 +285,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 		"backgroundColor": "#fbfaf6",
 		"grid": {"left": 40, "right": 40, "top": 60, "bottom": 30},
 		"legend": {
-			"data": ["Rooms", "Gates", "Start", "Destination"],
+			"data": ["Rooms", "Room names", "Gates", "Gate names", "Start", "Destination"],
 			"top": 0,
 			"left": 10,
 			"textStyle": {"color": "#263238", "fontSize": 12},
