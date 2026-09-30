@@ -56,7 +56,7 @@ def wrap_label(label, width=19):
             current = f"{current} {word}".strip()
     if current:
         lines.append(current)
-    return "<br>".join(lines)
+    return " ".join(lines)
 
 
 def room_label_layout(room_id, graph, positions):
@@ -65,7 +65,7 @@ def room_label_layout(room_id, graph, positions):
 	if room_id == 20:
 		return {"position": "top", "distance": 8, "offset": [0, 0]}
 	if room_id == 21:
-		return {"position": "top", "distance": 8, "offset": [0, 0]}
+		return {"position": "top", "distance": 5, "offset": [0, 0]}
 	if room_id == 43:
 		return {"position": "top", "distance": 8, "offset": [0, 0]}
 	if room_id == 32:
