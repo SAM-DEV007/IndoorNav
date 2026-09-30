@@ -140,10 +140,18 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         route_coords = [[positions[node][0], positions[node][1]] for node in route]
         series.append({
             "name": "Shortest route",
-            "type": "line",
-            "data": route_coords,
-            "lineStyle": {"color": "#e4572e", "width": 5},
-            "symbol": "none",
+            "type": "lines",
+            "coordinateSystem": "cartesian2d",
+            "polyline": True,
+            "data": [{"coords": route_coords}],
+            "lineStyle": {
+                "color": "#e4572e",
+                "width": 5,
+                "opacity": 1,
+                "cap": "round",
+                "join": "round"
+            },
+            "clip": False,
             "z": 10,
             "silent": True,
             "tooltip": {"show": False}
@@ -265,7 +273,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     })
 
     marker_data = []
-    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 15)):
+    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 14)):
         x, y = positions[int(room_id)]
         marker_data.append({
             "value": [x, y],
@@ -314,12 +322,14 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 			{
 				"type": "inside",
 				"xAxisIndex": 0,
+				"filterMode": "none",
 				"zoomOnMouseWheel": True,
 				"moveOnMouseMove": True
 			},
 			{
 				"type": "inside",
 				"yAxisIndex": 0,
+				"filterMode": "none",
 				"zoomOnMouseWheel": True,
 				"moveOnMouseMove": True
 			}
