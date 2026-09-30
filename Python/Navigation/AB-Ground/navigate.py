@@ -110,7 +110,7 @@ def room_label_layout(room_id, graph, positions):
 	}
 
 
-def make_map(graph, positions, rooms, route, origin, destination, clicked):
+def make_map(graph, positions, rooms, route, origin, destination):
 	figure = go.Figure()
 
 	base_x, base_y = [], []
@@ -261,22 +261,22 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 
 
 def handle_map_selection():
-    event = st.session_state.floorplan
-    points = event.selection.get("points", [])
+	event = st.session_state.floorplan
+	points = event.selection.get("points", [])
 
-    if not points:
-        return
+	if not points:
+		return
 
-    point = points[-1]
+	point = points[-1]
 
-    if point.get("x") is None or point.get("y") is None:
-        return
+	if point.get("x") is None or point.get("y") is None:
+		return
 
-    x = float(point["x"])
-    y = float(point["y"])
+	x = float(point["x"])
+	y = float(point["y"])
 
-    selected_room = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
-    st.session_state.destination = selected_room
+	selected_room = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+	st.session_state.destination = selected_room
 
 
 def main():
@@ -343,11 +343,9 @@ def main():
 			else:
 				st.warning("No cached route exists for this pair.")
 
-	clicked = st.session_state.get("clicked")
 	with map_column:
 		st.plotly_chart(
-			make_map(graph, positions, rooms, route_data[1] if route_data else None,
-				origin, destination, clicked),
+			make_map(graph, positions, rooms, route_data[1] if route_data else None, origin, destination),
 			width="stretch", on_select=handle_map_selection, selection_mode="points", key="floorplan",
 			config={
 				"scrollZoom": True,
