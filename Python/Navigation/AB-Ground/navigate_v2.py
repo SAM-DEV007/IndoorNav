@@ -116,15 +116,15 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         x2, y2 = positions[right]
         base_lines.append({"coords": [[x1, y1], [x2, y2]]})
 
-    # Base Walkable Paths (without the node circles)
     series.append({
 		"name": "Walkable path",
 		"type": "lines",
 		"coordinateSystem": "cartesian2d",
 		"data": base_lines,
 		"lineStyle": {
-			"color": "#aebabc",
-			"width": 15,
+			"color": "#d2dbde",
+			"width": 12,
+			"opacity": 1,
 			"cap": "round",
 			"join": "round"
 		},
@@ -138,7 +138,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "coordinateSystem": "cartesian2d",
         "data": base_lines,
         "lineStyle": {
-            "color": "#edf1ee",
+            "color": "#d2dbde",
             "width": 9,
             "cap": "round",
             "join": "round"
