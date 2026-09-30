@@ -251,7 +251,7 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			)
 		)
 	figure.update_layout(
-		height=650, clickmode="event+select", dragmode="pan", uirevision="ab-ground",
+		height=650, clickmode="event", dragmode="pan", uirevision="ab-ground",
 		margin={"l": 10, "r": 10, "t": 10, "b": 10},
 		plot_bgcolor="#fbfaf6", paper_bgcolor="#fbfaf6",
 		legend={"orientation": "h", "y": 1.02, "x": 0, "groupclick": "togglegroup", "font": {"color": "#263238", "size": 10}},
@@ -339,8 +339,8 @@ def main():
 	with map_column:
 		event = st.plotly_chart(
 			make_map(graph, positions, rooms, route_data[1] if route_data else None, origin, destination, clicked),
-			width="stretch", on_select="rerun", selection_mode="points", key="floorplan",
-			config={"scrollZoom": True, "displaylogo": False, "responsive": True, "displayModeBar": True},
+			width="stretch", on_select="rerun", key="floorplan",
+			config={"scrollZoom": True, "displaylogo": False, "responsive": True},
 		)
 
 	selected_point = click_position(event)
