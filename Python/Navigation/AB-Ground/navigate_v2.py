@@ -297,7 +297,15 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 
     options = {
         "backgroundColor": "#fbfaf6",
-        "grid": {"left": 40, "right": 40, "top": 60, "bottom": 30},
+        "grid": {
+            "show": True,
+            "borderColor": "#b0bec5",
+            "borderWidth": 1.5,
+            "left": 40,
+            "right": 40,
+            "top": 60,
+            "bottom": 30
+        },
         "legend": {
             "data": ["Rooms", "Room names", "Gates", "Gate names", "Start", "Destination"],
             "top": 0,
