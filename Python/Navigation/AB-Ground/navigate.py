@@ -251,7 +251,7 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			)
 		)
 	figure.update_layout(
-		height=650, clickmode="event", dragmode="pan", uirevision="ab-ground",
+		height=650, clickmode="event+select", dragmode="pan", uirevision="ab-ground",
 		margin={"l": 10, "r": 10, "t": 10, "b": 10},
 		plot_bgcolor="#fbfaf6", paper_bgcolor="#fbfaf6",
 		legend={"orientation": "h", "y": 1.02, "x": 0, "groupclick": "togglegroup", "font": {"color": "#263238", "size": 10}},
@@ -344,12 +344,9 @@ def main():
 		)
 
 	selected_point = click_position(event)
-	if selected_point and selected_point != st.session_state.get("clicked"):
-		st.session_state.clicked = selected_point
-
+	if selected_point:
 		selected_room = int(nearest_room(*selected_point, rooms, positions))
-
-		if selected_room != st.session_state.get("destination", None):
+		if selected_room != destination:
 			st.session_state.destination = selected_room
 			st.rerun()
 
