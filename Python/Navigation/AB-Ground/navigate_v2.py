@@ -1,10 +1,11 @@
 import ast
 import math
+
 from pathlib import Path
+from streamlit_echarts import st_echarts
 
 import networkx as nx
 import pandas as pd
-from streamlit_echarts import st_echarts
 import streamlit as st
 
 
@@ -40,8 +41,7 @@ def load_map_data():
 def nearest_room(x, y, rooms, positions):
     return min(
         rooms.Room_ID,
-        key=lambda room_id: (positions[int(room_id)][0] - x) ** 2
-        + (positions[int(room_id)][1] - y) ** 2,
+        key=lambda room_id: (positions[int(room_id)][0] - x) ** 2 + (positions[int(room_id)][1] - y) ** 2
     )
 
 
