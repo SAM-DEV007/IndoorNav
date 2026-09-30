@@ -224,23 +224,6 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "z": 20
     })
 
-    series.append({
-        "name": "Start",
-        "type": "scatter",
-        "data": [],
-        "symbol": "circle",
-        "symbolSize": 10,
-        "itemStyle": {"color": "#ffffff", "borderColor": "#202a2e", "borderWidth": 1}
-    })
-    series.append({
-        "name": "Destination",
-        "type": "scatter",
-        "data": [],
-        "symbol": "circle",
-        "symbolSize": 10,
-        "itemStyle": {"color": "#2ca25f", "borderColor": "#202a2e", "borderWidth": 1}
-    })
-
     marker_data = []
     for room_id, color in ((origin, "#ffffff"), (destination, "#2ca25f")):
         if int(room_id) in (1, 15):
