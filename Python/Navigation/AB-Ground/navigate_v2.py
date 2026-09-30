@@ -60,42 +60,30 @@ def wrap_label(label, width=19):
 
 
 def room_label_layout(room_id, graph, positions):
-    if room_id == 18:
-        return {"xshift": 20, "yshift": 0, "xanchor": "left", "yanchor": "middle", "align": "left", "angle": 0}
-    if room_id == 20:
-        return {"xshift": 0, "yshift": 14, "xanchor": "center", "yanchor": "bottom", "align": "center", "angle": 0}
-    if room_id == 21:
-        return {"xshift": 0, "yshift": 14, "xanchor": "center", "yanchor": "bottom", "align": "center", "angle": 0}
-    if room_id == 43:
-        return {"xshift": 0, "yshift": 14, "xanchor": "center", "yanchor": "bottom", "align": "center", "angle": 0}
-    if room_id == 32:
-        return {"xshift": -12, "yshift": 0, "xanchor": "right", "yanchor": "middle", "align": "right", "angle": 0}
+	if room_id == 18:
+		return {"position": "right", "distance": 8, "offset": [0, -8]}
+	if room_id == 20:
+		return {"position": "top", "distance": 8, "offset": [0, 0]}
+	if room_id == 21:
+		return {"position": "top", "distance": 8, "offset": [0, 0]}
+	if room_id == 43:
+		return {"position": "top", "distance": 8, "offset": [0, 0]}
+	if room_id == 32:
+		return {"position": "left", "distance": 8, "offset": [0, 0]}
 
-    x, y = positions[room_id]
-    neighbors = list(graph.neighbors(room_id))
-    if not neighbors:
-        return {"xshift": 0, "yshift": 12, "xanchor": "center", "yanchor": "bottom", "align": "center", "angle": 0}
+	x, y = positions[room_id]
+	neighbors = list(graph.neighbors(room_id))
+	if not neighbors:
+		return {"position": "top", "distance": 8, "offset": [0, 0]}
 
-    neighbor_x, neighbor_y = positions[neighbors[0]]
-    away_x, away_y = x - neighbor_x, y - neighbor_y
-    angle = math.degrees(math.atan2(away_y, away_x))
-    if abs(away_x) >= abs(away_y):
-        return {
-            "xshift": 30 if away_x > 0 else -30,
-            "yshift": 0,
-            "xanchor": "left" if away_x > 0 else "right",
-            "yanchor": "middle",
-            "align": "left" if away_x > 0 else "right",
-            "angle": angle,
-        }
-    return {
-        "xshift": 0,
-        "yshift": 20 if away_y > 0 else -20,
-        "xanchor": "center",
-        "yanchor": "bottom" if away_y > 0 else "top",
-        "align": "center",
-        "angle": angle,
-    }
+	neighbor_x, neighbor_y = positions[neighbors[0]]
+	away_x, away_y = x - neighbor_x, y - neighbor_y
+	if abs(away_x) >= abs(away_y):
+		pos = "right" if away_x > 0 else "left"
+	else:
+		pos = "top" if away_y > 0 else "bottom"
+
+	return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
 def get_echarts_options(graph, positions, rooms, route, origin, destination):
@@ -166,21 +154,24 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     for row in room_records.itertuples(index=False):
         x, y = positions[int(row.Room_ID)]
         layout = room_label_layout(int(row.Room_ID), graph, positions)
+        text = wrap_label(str(row.Room_Name))
         room_data.append({
             "value": [x, y],
             "roomId": int(row.Room_ID),
             "name": row.Room_Name,
             "label": {
                 "show": True,
-                "formatter": row.Room_Name,
-                "color": "#263238",
-                "fontSize": 9,
-                "offset": [layout["xshift"], -layout["yshift"]],
-                "align": "center",
-                "verticalAlign": "middle"
+                "formatter": text,
+                "position": layout["position"],
+                "distance": layout["distance"],
+                "offset": layout["offset"],
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 8,
+                "lineHeight": 10
             }
         })
-    
+
     series.append({
         "name": "Rooms",
         "type": "scatter",
@@ -196,14 +187,30 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
             "value": [positions[1][0], positions[1][1]],
             "roomId": 1,
             "name": "Front Gate",
-            "label": {"show": True, "formatter": "Front Gate", "position": "bottom", "color": "#263238", "fontSize": 10},
+            "label": {
+                "show": True,
+                "formatter": "Front Gate",
+                "position": "bottom",
+                "distance": 8,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 9
+            },
             "itemStyle": {"color": "#e63946"}
         },
         {
             "value": [positions[15][0], positions[15][1]],
             "roomId": 15,
             "name": "Back Gate",
-            "label": {"show": True, "formatter": "Back Gate", "position": "top", "color": "#263238", "fontSize": 10},
+            "label": {
+                "show": True,
+                "formatter": "Back Gate",
+                "position": "top",
+                "distance": 8,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 9
+            },
             "itemStyle": {"color": "#111111"}
         }
     ]
