@@ -157,13 +157,12 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 	)
 
 	if route:
-		route_x = [positions[node][0] for node in route]
-		route_y = [positions[node][1] for node in route]
+		route_x = [positions[node][0] for node in route] if route else [None]
+		route_y = [positions[node][1] for node in route] if route else [None]
 		figure.add_trace(
 			go.Scatter(
-				x=route_x, y=route_y, mode="lines+markers",
+				x=route_x, y=route_y, mode="lines",
 				line={"color": "#e4572e", "width": 5},
-				marker={"size": 7, "color": "#e4572e"},
 				name="Shortest route", hoverinfo="skip",
 			)
 		)
@@ -180,42 +179,23 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			hovertemplate="%{text}<extra></extra>",
 		)
 	)
+
 	all_x, all_y = zip(*positions.values())
 	x_units_per_pixel = (max(all_x) - min(all_x)) / 900
 	y_units_per_pixel = (max(all_y) - min(all_y)) / 650
-	placed_labels = []
+
 	label_x_values, label_y_values, label_values = [], [], []
 	for room in room_records.itertuples(index=False):
 		x, y = positions[int(room.Room_ID)]
+
 		label_layout = room_label_layout(int(room.Room_ID), graph, positions)
-		label = room.Room_Name
-		label_width = len(label) * 0.22
-		label_height = 0.8
-		for _ in range(8):
-			label_x = x + label_layout["xshift"] * x_units_per_pixel
-			label_y = y + label_layout["yshift"] * y_units_per_pixel
-			label_box = (
-				label_x - label_width / 2,
-				label_x + label_width / 2,
-				label_y - label_height / 2,
-				label_y + label_height / 2,
-			)
-			if not any(
-				label_box[0] < other[1]
-				and label_box[1] > other[0]
-				and label_box[2] < other[3]
-				and label_box[3] > other[2]
-				for other in placed_labels
-			):
-				break
-			if label_layout["xanchor"] == "center":
-				label_layout["xshift"] += 16
-			else:
-				label_layout["yshift"] += 12
-		placed_labels.append(label_box)
+		label_x = x + label_layout["xshift"] * x_units_per_pixel
+		label_y = y + label_layout["yshift"] * y_units_per_pixel
+
 		label_x_values.append(label_x)
 		label_y_values.append(label_y)
-		label_values.append(label)
+		label_values.append(room.Room_Name)
+
 	figure.add_trace(
 		go.Scatter(
 			x=label_x_values, y=label_y_values, mode="text", text=label_values,
@@ -278,11 +258,20 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 		xaxis={"visible": False, "scaleanchor": "y", "scaleratio": 1, "fixedrange": False},
 		yaxis={"visible": False, "fixedrange": False},
 	)
+
 	padding = 8
+
 	min_x, max_x = min(all_x) - padding, max(all_x) + padding
 	min_y, max_y = min(all_y) - padding, max(all_y) + padding
+
 	figure.update_xaxes(range=[min_x, max_x])
 	figure.update_yaxes(range=[min_y, max_y])
+
+	figure.update_traces(
+		selected={"marker": {"opacity": 1}, "textfont": {"color": "#263238"}},
+		unselected={"marker": {"opacity": 1}, "textfont": {"color": "#263238"}}
+	)
+
 	return figure
 
 
@@ -291,8 +280,31 @@ def main():
 	st.markdown(
 		"""
 		<style>
-		.js-plotly-plot .plotly .point { cursor: pointer !important; }
-		.js-plotly-plot .plotly .nsewdrag { cursor: move !important; }
+		.js-plotly-plot .plotly .nsewdrag {
+			cursor: move !important;
+		}
+		.js-plotly-plot:has(.hoverlayer .hovertext) .plotly .nsewdrag {
+			cursor: pointer !important;
+		}
+		</style>
+		""",
+		unsafe_allow_html=True,
+	)
+	st.markdown(
+		"""
+		<style>
+		.js-plotly-plot .plotly .modebar-container {
+			top: auto !important;
+			bottom: 35px !important;
+			right: 12px !important;
+			left: auto !important;
+			z-index: 1001 !important;
+		}
+		.js-plotly-plot .plotly .modebar {
+			opacity: 1 !important;
+			background: rgba(251, 250, 246, 0.85) !important;
+			border-radius: 4px !important;
+		}
 		</style>
 		""",
 		unsafe_allow_html=True,
@@ -306,10 +318,13 @@ def main():
 	with controls:
 		room_options = list(rooms.Room_ID)
 		default_origin = int(st.session_state.get("origin", room_options[0]))
+		
 		fallback_dest = room_options[1] if len(room_options) > 1 else room_options[0]
 		destination_default = int(st.session_state.get("destination", fallback_dest))
+		
 		origin = st.selectbox("Starting room", room_options, index=room_options.index(default_origin), format_func=labels.get)
 		destination = st.selectbox("Destination room", room_options, index=room_options.index(destination_default), format_func=labels.get)
+		
 		if origin == destination:
 			st.info("Choose two different rooms to show a route.")
 			route_data = None
@@ -325,14 +340,18 @@ def main():
 		event = st.plotly_chart(
 			make_map(graph, positions, rooms, route_data[1] if route_data else None, origin, destination, clicked),
 			width="stretch", on_select="rerun", selection_mode="points", key="floorplan",
-			config={"scrollZoom": True, "displaylogo": False, "responsive": True},
+			config={"scrollZoom": True, "displaylogo": False, "responsive": True, "displayModeBar": True},
 		)
+
 	selected_point = click_position(event)
-	if selected_point:
-		selected_room = nearest_room(*selected_point, rooms, positions)
+	if selected_point and selected_point != st.session_state.get("clicked"):
 		st.session_state.clicked = selected_point
-		st.session_state.destination = int(selected_room)
-		st.rerun()
+
+		selected_room = int(nearest_room(*selected_point, rooms, positions))
+
+		if selected_room != st.session_state.get("destination", None):
+			st.session_state.destination = selected_room
+			st.rerun()
 
 
 if __name__ == "__main__":
