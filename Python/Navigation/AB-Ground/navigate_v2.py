@@ -96,6 +96,12 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     min_x, max_x = min(all_x) - x_pad, max(all_x) + x_pad
     min_y, max_y = min(all_y) - y_pad, max(all_y) + y_pad
 
+    mz = st.session_state.get("map_zoom")
+    zoom_x_start = mz[0]["start"] if mz and len(mz) > 0 and "start" in mz[0] else 0
+    zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
+    zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
+    zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
+
     series = []
 
     base_lines = []
@@ -290,77 +296,88 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     })
 
     options = {
-		"backgroundColor": "#fbfaf6",
-		"grid": {"left": 40, "right": 40, "top": 60, "bottom": 30},
-		"legend": {
-			"data": ["Rooms", "Room names", "Gates", "Gate names", "Start", "Destination"],
-			"top": 0,
-			"left": 10,
-			"textStyle": {"color": "#263238", "fontSize": 12},
-			"itemGap": 15
-		},
-		"xAxis": {
-			"show": False,
-			"type": "value",
-			"min": min_x,
-			"max": max_x,
-			"scale": True
-		},
-		"yAxis": {
-			"show": False,
-			"type": "value",
-			"min": min_y,
-			"max": max_y,
-			"scale": True
-		},
-		"tooltip": {
-			"show": True,
-			"trigger": "item",
-			"formatter": "{b}"
-		},
-		"dataZoom": [
-			{
-				"type": "inside",
-				"xAxisIndex": 0,
-				"filterMode": "none",
-				"zoomOnMouseWheel": True,
-				"moveOnMouseMove": True
-			},
-			{
-				"type": "inside",
-				"yAxisIndex": 0,
-				"filterMode": "none",
-				"zoomOnMouseWheel": True,
-				"moveOnMouseMove": True
-			}
-		],
-		"series": series,
-		"animation": False
-	}
+        "backgroundColor": "#fbfaf6",
+        "grid": {"left": 40, "right": 40, "top": 60, "bottom": 30},
+        "legend": {
+            "data": ["Rooms", "Room names", "Gates", "Gate names", "Start", "Destination"],
+            "top": 0,
+            "left": 10,
+            "textStyle": {"color": "#263238", "fontSize": 12},
+            "itemGap": 15
+        },
+        "xAxis": {
+            "show": False,
+            "type": "value",
+            "min": min_x,
+            "max": max_x,
+            "scale": True
+        },
+        "yAxis": {
+            "show": False,
+            "type": "value",
+            "min": min_y,
+            "max": max_y,
+            "scale": True
+        },
+        "tooltip": {
+            "show": True,
+            "trigger": "item",
+            "formatter": "{b}"
+        },
+        "dataZoom": [
+            {
+                "type": "inside",
+                "xAxisIndex": 0,
+                "filterMode": "none",
+                "start": zoom_x_start,
+                "end": zoom_x_end,
+                "zoomOnMouseWheel": True,
+                "moveOnMouseMove": True
+            },
+            {
+                "type": "inside",
+                "yAxisIndex": 0,
+                "filterMode": "none",
+                "start": zoom_y_start,
+                "end": zoom_y_end,
+                "zoomOnMouseWheel": True,
+                "moveOnMouseMove": True
+            }
+        ],
+        "series": series,
+        "animation": False
+    }
 
     return options
 
 
 def handle_map_click(clicked_data):
-    clicked_data = clicked_data.get("chart_event", {})
-    if not clicked_data:
+    if not clicked_data or not isinstance(clicked_data, dict):
         return False
-        
+
+    event = clicked_data.get("chart_event", clicked_data)
+    if not isinstance(event, dict):
+        return False
+
+    dz = event.get("dataZoom")
+    if dz and isinstance(dz, list) and len(dz) >= 2 and dz[0] and dz[1]:
+        st.session_state.map_zoom = dz
+
     new_dest = None
-    
-    if clicked_data.get("roomId"):
-        new_dest = int(clicked_data["roomId"])
-    elif clicked_data.get("value") and isinstance(clicked_data["value"], list) and len(clicked_data["value"]) >= 2:
-        x, y = float(clicked_data["value"][0]), float(clicked_data["value"][1])
+
+    if event.get("roomId"):
+        new_dest = int(event["roomId"])
+    elif event.get("value") and isinstance(event["value"], list) and len(event["value"]) >= 2:
+        x, y = float(event["value"][0]), float(event["value"][1])
         new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
-    elif clicked_data.get("coords") and isinstance(clicked_data["coords"], list) and len(clicked_data["coords"]) > 0:
-        x, y = float(clicked_data["coords"][0][0]), float(clicked_data["coords"][0][1])
+    elif event.get("coords") and isinstance(event["coords"], list) and len(event["coords"]) > 0:
+        x, y = float(event["coords"][0][0]), float(event["coords"][0][1])
         new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
-        
+
     if new_dest is not None and st.session_state.get("destination") != new_dest:
         st.session_state.destination = new_dest
         return True
-        
+
     return False
 
 
@@ -404,16 +421,33 @@ def main():
         options = get_echarts_options(graph, positions, rooms, route_data[1] if route_data else None, origin, destination)
 
         events = {
-            "click": "function(params) { return { roomId: params.data ? params.data.roomId : null, value: params.value, coords: params.data ? params.data.coords : null }; }"
+            "datazoom": """function(p) {
+                window._mapZoom = window._mapZoom || [{start: 0, end: 100}, {start: 0, end: 100}];
+                var b = p.batch || [p];
+                for (var i = 0; i < b.length; i++) {
+                    var idx = (b[i].dataZoomIndex !== undefined) ? b[i].dataZoomIndex : i;
+                    if (idx < 2) {
+                        window._mapZoom[idx] = { start: b[i].start, end: b[i].end };
+                    }
+                }
+            }""",
+            "click": """function(params) {
+                return {
+                    roomId: params.data ? params.data.roomId : null,
+                    value: params.value,
+                    coords: params.data ? params.data.coords : null,
+                    dataZoom: window._mapZoom || null
+                };
+            }"""
         }
-        
+
         clicked_data = st_echarts(
             options=options,
             events=events,
             height="650px",
             key="floorplan"
         )
-        
+
         if handle_map_click(clicked_data):
             st.rerun()
 
