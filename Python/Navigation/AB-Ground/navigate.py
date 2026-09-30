@@ -73,7 +73,7 @@ def wrap_label(label, width=19):
 
 def room_label_layout(room_id, graph, positions):
 	if room_id == 18:
-		return {"xshift": 14, "yshift": 0, "xanchor": "left", "yanchor": "middle", "align": "left", "angle": 0}
+		return {"xshift": 20, "yshift": 0, "xanchor": "left", "yanchor": "middle", "align": "left", "angle": 0}
 	if room_id == 20:
 		return {"xshift": 0, "yshift": 14, "xanchor": "center", "yanchor": "bottom", "align": "center", "angle": 0}
 	if room_id == 21:
@@ -93,7 +93,7 @@ def room_label_layout(room_id, graph, positions):
 	angle = math.degrees(math.atan2(away_y, away_x))
 	if abs(away_x) >= abs(away_y):
 		return {
-			"xshift": 14 if away_x > 0 else -14,
+			"xshift": 30 if away_x > 0 else -30,
 			"yshift": 0,
 			"xanchor": "left" if away_x > 0 else "right",
 			"yanchor": "middle",
@@ -102,7 +102,7 @@ def room_label_layout(room_id, graph, positions):
 		}
 	return {
 		"xshift": 0,
-		"yshift": 12 if away_y > 0 else -12,
+		"yshift": 20 if away_y > 0 else -20,
 		"xanchor": "center",
 		"yanchor": "bottom" if away_y > 0 else "top",
 		"align": "center",
