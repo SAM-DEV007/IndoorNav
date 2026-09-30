@@ -295,7 +295,7 @@ def main():
 		<style>
 		.js-plotly-plot .plotly .modebar-container {
 			top: auto !important;
-			bottom: 35px !important;
+			bottom: 55px !important;
 			right: 12px !important;
 			left: auto !important;
 			z-index: 1001 !important;
