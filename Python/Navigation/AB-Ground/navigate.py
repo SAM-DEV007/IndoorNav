@@ -23,9 +23,8 @@ def load_map_data():
 	}
 	rooms = pd.read_csv(ROOMS_PATH)
 	rooms["Room_ID"] = rooms["Room_ID"].astype(int)
-	rooms["label"] = rooms.apply(
-		lambda row: f"{int(row.Room_ID)} - {row.Room_Name}", axis=1
-	)
+	rooms["label"] = rooms.apply(lambda row: f"{row.Room_Name}", axis=1)
+	
 	cache = pd.read_csv(CACHE_PATH)
 	cache["Path"] = cache["Path"].map(ast.literal_eval)
 
@@ -169,7 +168,7 @@ def main():
 	with map_column:
 		event = st.plotly_chart(
 			make_map(graph, positions, rooms, route_data[1] if route_data else None, origin, destination, clicked),
-			use_container_width=True, on_select="rerun", selection_mode="points", key="floorplan",
+			width="stretch", on_select="rerun", selection_mode="points", key="floorplan",
 		)
 	selected_point = click_position(event)
 	if selected_point:
