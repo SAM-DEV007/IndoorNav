@@ -6,3 +6,4 @@ scipy==1.18.1
 tqdm==4.70.1
 plotly==7.1.0
 streamlit==1.64.0
+streamlit-echarts==0.7.0
