@@ -112,12 +112,18 @@ def room_label_layout(room_id, graph, positions):
 
 def make_map(graph, positions, rooms, route, origin, destination, clicked):
 	figure = go.Figure()
+
 	base_x, base_y = [], []
+
 	for left, right in graph.edges:
 		x1, y1 = positions[left]
 		x2, y2 = positions[right]
 		base_x.extend([x1, x2, None])
 		base_y.extend([y1, y2, None])
+        
+	node_x = [positions[node][0] for node in graph.nodes]
+	node_y = [positions[node][1] for node in graph.nodes]
+
 	figure.add_trace(
 		go.Scatter(
 			x=base_x, y=base_y, mode="lines",
@@ -125,6 +131,15 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			hoverinfo="skip", name="Walkable path",
 		)
 	)
+
+	figure.add_trace(
+		go.Scatter(
+			x=node_x, y=node_y, mode="markers",
+			marker={"color": "#aebabc", "size": 15, "line": {"width": 0}},
+			hoverinfo="skip", showlegend=False,
+		)
+	)
+
 	figure.add_trace(
 		go.Scatter(
 			x=base_x, y=base_y, mode="lines",
@@ -132,20 +147,11 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			hoverinfo="skip", showlegend=False,
 		)
 	)
-	top_corridor = [1030, 1029, 1028, 1027, 1012, 1031, 1032, 1033, 1034, 1035]
+    
 	figure.add_trace(
 		go.Scatter(
-			x=[positions[node][0] for node in top_corridor],
-			y=[positions[node][1] for node in top_corridor],
-			mode="lines", line={"color": "#aebabc", "width": 15},
-			hoverinfo="skip", showlegend=False,
-		)
-	)
-	figure.add_trace(
-		go.Scatter(
-			x=[positions[node][0] for node in top_corridor],
-			y=[positions[node][1] for node in top_corridor],
-			mode="lines", line={"color": "#edf1ee", "width": 9},
+			x=node_x, y=node_y, mode="markers",
+			marker={"color": "#edf1ee", "size": 9, "line": {"width": 0}},
 			hoverinfo="skip", showlegend=False,
 		)
 	)
@@ -171,7 +177,7 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 			marker={"symbol": "square", "size": 10, "color": "#2f8fbd", "line": {"color": "#17465d", "width": 1}},
 			customdata=room_records.Room_ID, text=room_records.Room_Name, name="Rooms",
 			legendgroup="rooms",
-			hovertemplate="%{customdata}: %{text}<extra></extra>",
+			hovertemplate="%{text}<extra></extra>",
 		)
 	)
 	all_x, all_y = zip(*positions.values())
@@ -223,9 +229,10 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 	figure.add_trace(
 		go.Scatter(
 			x=gate_x, y=gate_y, mode="markers+text", text=["Front Gate", "Back Gate"],
-			textposition="top center", name="Gates",
+			textposition=["bottom center", "top center"], name="Gates",
 			marker={"symbol": "circle", "size": 15, "color": ["#e63946", "#111111"], "line": {"color": "#202a2e", "width": 2}},
-			textfont={"size": 8, "color": "#263238"}, hoverinfo="skip",
+			textfont={"size": 8, "color": "#263238"}, 
+			hovertemplate="%{text}<extra></extra>",
 		)
 	)
 
@@ -294,12 +301,13 @@ def main():
 	labels = dict(zip(rooms.Room_ID, rooms.label))
 
 	st.title("AB Ground Floor Navigation")
-	st.caption("Choose rooms or click a corridor to place the starting location.")
+	st.caption("Choose rooms or click a corridor to place the destination location.")
 	controls, map_column = st.columns([1, 2.7], gap="large")
 	with controls:
 		room_options = list(rooms.Room_ID)
 		default_origin = int(st.session_state.get("origin", room_options[0]))
-		destination_default = room_options[1] if len(room_options) > 1 else room_options[0]
+		fallback_dest = room_options[1] if len(room_options) > 1 else room_options[0]
+		destination_default = int(st.session_state.get("destination", fallback_dest))
 		origin = st.selectbox("Starting room", room_options, index=room_options.index(default_origin), format_func=labels.get)
 		destination = st.selectbox("Destination room", room_options, index=room_options.index(destination_default), format_func=labels.get)
 		if origin == destination:
@@ -311,9 +319,6 @@ def main():
 				st.metric("Route distance", f"{route_data[0]:.2f} m")
 			else:
 				st.warning("No cached route exists for this pair.")
-		st.markdown("**Map click**")
-		st.write("Click a corridor or room marker to snap the start to the nearest room.")
-		st.button("Reset clicked start", on_click=lambda: st.session_state.pop("clicked", None))
 
 	clicked = st.session_state.get("clicked")
 	with map_column:
@@ -326,7 +331,7 @@ def main():
 	if selected_point:
 		selected_room = nearest_room(*selected_point, rooms, positions)
 		st.session_state.clicked = selected_point
-		st.session_state.origin = int(selected_room)
+		st.session_state.destination = int(selected_room)
 		st.rerun()
 
 
