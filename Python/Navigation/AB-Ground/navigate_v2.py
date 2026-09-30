@@ -314,6 +314,11 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 			{
 				"type": "inside",
 				"xAxisIndex": 0,
+				"zoomOnMouseWheel": True,
+				"moveOnMouseMove": True
+			},
+			{
+				"type": "inside",
 				"yAxisIndex": 0,
 				"zoomOnMouseWheel": True,
 				"moveOnMouseMove": True
