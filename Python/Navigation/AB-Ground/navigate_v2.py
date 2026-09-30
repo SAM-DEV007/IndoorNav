@@ -113,6 +113,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         x2, y2 = positions[right]
         base_lines.append({"coords": [[x1, y1], [x2, y2]]})
 
+    # Base Walkable Paths (without the node circles)
     series.append({
         "name": "Walkable path",
         "type": "lines",
@@ -123,30 +124,11 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "tooltip": {"show": False}
     })
 
-    base_nodes = [{"value": [positions[n][0], positions[n][1]]} for n in graph.nodes]
-    series.append({
-        "type": "scatter",
-        "data": base_nodes,
-        "symbolSize": 15,
-        "itemStyle": {"color": "#aebabc"},
-        "silent": False,
-        "tooltip": {"show": False}
-    })
-
     series.append({
         "type": "lines",
         "coordinateSystem": "cartesian2d",
         "data": base_lines,
         "lineStyle": {"color": "#edf1ee", "width": 9},
-        "silent": False,
-        "tooltip": {"show": False}
-    })
-
-    series.append({
-        "type": "scatter",
-        "data": base_nodes,
-        "symbolSize": 9,
-        "itemStyle": {"color": "#edf1ee"},
         "silent": False,
         "tooltip": {"show": False}
     })
@@ -301,20 +283,19 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
 
 
 def handle_map_click(clicked_data):
+    clicked_data = clicked_data.get("chart_event", {})
     if not clicked_data:
         return False
         
-    x, y = None, None
     new_dest = None
     
     if clicked_data.get("roomId"):
         new_dest = int(clicked_data["roomId"])
-    elif clicked_data.get("value") and len(clicked_data["value"]) >= 2:
+    elif clicked_data.get("value") and isinstance(clicked_data["value"], list) and len(clicked_data["value"]) >= 2:
         x, y = float(clicked_data["value"][0]), float(clicked_data["value"][1])
-    elif clicked_data.get("coords") and len(clicked_data["coords"]) > 0:
+        new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+    elif clicked_data.get("coords") and isinstance(clicked_data["coords"], list) and len(clicked_data["coords"]) > 0:
         x, y = float(clicked_data["coords"][0][0]), float(clicked_data["coords"][0][1])
-        
-    if new_dest is None and x is not None and y is not None:
         new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
         
     if new_dest is not None and st.session_state.get("destination") != new_dest:
@@ -333,6 +314,13 @@ def main():
     st.session_state.positions = positions
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
+    room_options = list(rooms.Room_ID)
+
+    if "origin" not in st.session_state:
+        st.session_state.origin = int(room_options[0])
+    if "destination" not in st.session_state:
+        fallback_dest = room_options[1] if len(room_options) > 1 else room_options[0]
+        st.session_state.destination = int(fallback_dest)
 
     st.title("AB Ground Floor Navigation")
     st.caption("Choose rooms or click a corridor to place the destination location.")
@@ -340,14 +328,8 @@ def main():
     controls, map_column = st.columns([1, 2.7], gap="large")
     
     with controls:
-        room_options = list(rooms.Room_ID)
-        default_origin = int(st.session_state.get("origin", room_options[0]))
-        
-        fallback_dest = room_options[1] if len(room_options) > 1 else room_options[0]
-        destination_default = int(st.session_state.get("destination", fallback_dest))
-        
-        origin = st.selectbox("Starting room", room_options, index=room_options.index(default_origin), format_func=labels.get)
-        destination = st.selectbox("Destination room", room_options, index=room_options.index(destination_default), format_func=labels.get)
+        origin = st.selectbox("Starting room", room_options, index=room_options.index(st.session_state.origin), format_func=labels.get)
+        destination = st.selectbox("Destination room", room_options, index=room_options.index(st.session_state.destination), format_func=labels.get)
         
         if origin == destination:
             st.info("Choose two different rooms to show a route.")
@@ -361,15 +343,9 @@ def main():
 
     with map_column:
         options = get_echarts_options(graph, positions, rooms, route_data[1] if route_data else None, origin, destination)
-        
+
         events = {
-            "click": """function(params) {
-                return {
-                    roomId: params.data ? params.data.roomId : null,
-                    value: params.value,
-                    coords: params.data ? params.data.coords : null
-                }
-            }"""
+            "click": "function(params) { return { roomId: params.data ? params.data.roomId : null, value: params.value, coords: params.data ? params.data.coords : null }; }"
         }
         
         clicked_data = st_echarts(
