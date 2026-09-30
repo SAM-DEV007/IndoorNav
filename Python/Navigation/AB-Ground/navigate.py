@@ -216,21 +216,6 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 		)
 	)
 
-	samples_x, samples_y = [], []
-	for left, right in graph.edges:
-		x1, y1 = positions[left]
-		x2, y2 = positions[right]
-		for fraction in (0.25, 0.5, 0.75):
-			samples_x.append(x1 + fraction * (x2 - x1))
-			samples_y.append(y1 + fraction * (y2 - y1))
-	figure.add_trace(
-		go.Scatter(
-			x=samples_x, y=samples_y, mode="markers",
-			marker={"size": 18, "color": "rgba(0,0,0,0.01)"},
-			name="Click map", hoverinfo="skip", showlegend=False,
-		)
-	)
-
 	for room_id, color, label in ((origin, "#ffffff", "Start"), (destination, "#2ca25f", "Destination")):
 		if int(room_id) in (1, 15):
 			continue
@@ -275,6 +260,25 @@ def make_map(graph, positions, rooms, route, origin, destination, clicked):
 	return figure
 
 
+def handle_map_selection():
+    event = st.session_state.floorplan
+    points = event.selection.get("points", [])
+
+    if not points:
+        return
+
+    point = points[-1]
+
+    if point.get("x") is None or point.get("y") is None:
+        return
+
+    x = float(point["x"])
+    y = float(point["y"])
+
+    selected_room = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+    st.session_state.destination = selected_room
+
+
 def main():
 	st.set_page_config(page_title="AB Ground Navigation", layout="wide")
 	st.markdown(
@@ -310,6 +314,10 @@ def main():
 		unsafe_allow_html=True,
 	)
 	graph, positions, rooms, routes = load_map_data()
+
+	st.session_state.rooms = rooms
+	st.session_state.positions = positions
+
 	labels = dict(zip(rooms.Room_ID, rooms.label))
 
 	st.title("AB Ground Floor Navigation")
@@ -337,18 +345,16 @@ def main():
 
 	clicked = st.session_state.get("clicked")
 	with map_column:
-		event = st.plotly_chart(
-			make_map(graph, positions, rooms, route_data[1] if route_data else None, origin, destination, clicked),
-			width="stretch", on_select="rerun", key="floorplan",
-			config={"scrollZoom": True, "displaylogo": False, "responsive": True},
+		st.plotly_chart(
+			make_map(graph, positions, rooms, route_data[1] if route_data else None,
+				origin, destination, clicked),
+			width="stretch", on_select=handle_map_selection, selection_mode="points", key="floorplan",
+			config={
+				"scrollZoom": True,
+				"displaylogo": False,
+				"responsive": True,
+			},
 		)
-
-	selected_point = click_position(event)
-	if selected_point:
-		selected_room = int(nearest_room(*selected_point, rooms, positions))
-		if selected_room != destination:
-			st.session_state.destination = selected_room
-			st.rerun()
 
 
 if __name__ == "__main__":
