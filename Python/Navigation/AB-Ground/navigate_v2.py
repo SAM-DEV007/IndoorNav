@@ -558,7 +558,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
     return options
 
 
-def handle_map_click(clicked_data):
+def handle_map_click(clicked_data, rooms, positions):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
 
@@ -617,7 +617,7 @@ def handle_map_click(clicked_data):
         if event.get("roomId"):
             selected_room = int(event["roomId"])
         elif click_pt:
-            selected_room = int(nearest_room(click_pt[0], click_pt[1], st.session_state.rooms, st.session_state.positions))
+            selected_room = int(nearest_room(click_pt[0], click_pt[1], rooms, positions))
 
         if selected_room is not None:
             st.session_state.destination = selected_room
@@ -631,9 +631,6 @@ def main():
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
     
     graph, positions, rooms, routes = load_map_data()
-
-    st.session_state.rooms = rooms
-    st.session_state.positions = positions
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
@@ -700,11 +697,16 @@ def main():
                 dist_p_u = euclidean_dist(pt, positions[u])
                 dist_p_v = euclidean_dist(pt, positions[v])
 
-                d_u, path_u = nx.bidirectional_dijkstra(graph, u, dest_node, weight="weight")
-                total_u = dist_p_u + d_u
-
-                d_v, path_v = nx.bidirectional_dijkstra(graph, v, dest_node, weight="weight")
-                total_v = dist_p_v + d_v
+                try:
+                    d_u, path_u = nx.bidirectional_dijkstra(graph, u, dest_node, weight="weight")
+                    total_u = dist_p_u + d_u
+                except nx.NetworkXNoPath:
+                    total_u, path_u = float('inf'), None
+                try:
+                    d_v, path_v = nx.bidirectional_dijkstra(graph, v, dest_node, weight="weight")
+                    total_v = dist_p_v + d_v
+                except nx.NetworkXNoPath:
+                    total_v, path_v = float('inf'), None
 
                 if total_u < total_v and path_u:
                     route_distance = total_u
@@ -723,7 +725,10 @@ def main():
             if cached:
                 route_distance, best_path = cached[0], cached[1]
             else:
-                route_distance, best_path = nx.bidirectional_dijkstra(graph, orig_node, dest_node, weight="weight")
+                try:
+                    route_distance, best_path = nx.bidirectional_dijkstra(graph, orig_node, dest_node, weight="weight")
+                except nx.NetworkXNoPath:
+                    route_distance, best_path = None, None
 
             if best_path:
                 route_coords = [[positions[n][0], positions[n][1]] for n in best_path]
@@ -782,13 +787,11 @@ def main():
                         (pe.offsetY !== undefined) ? pe.offsetY : (
                         (rect && clientY !== null) ? clientY - rect.top : null));
 
-                // Grid boundaries (match these to your options.grid settings)
                 var gridLeft = 35;
                 var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
                 var gridTop = 55;
                 var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 48;
 
-                // Reject any clicks landing outside the grid area
                 if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
                     return {{
                         roomId: null,
@@ -837,7 +840,7 @@ def main():
             key="floorplan"
         )
 
-        if handle_map_click(clicked_data):
+        if handle_map_click(clicked_data, rooms, positions):
             st.rerun()
 
 
