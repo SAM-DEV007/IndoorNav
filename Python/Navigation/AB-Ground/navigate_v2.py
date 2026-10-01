@@ -1,9 +1,9 @@
 import ast
 import math
-import textwrap
 
 from pathlib import Path
 from streamlit_echarts import st_echarts
+from scipy.spatial import cKDTree
 
 import networkx as nx
 import pandas as pd
@@ -27,6 +27,8 @@ def load_map_data():
     rooms = pd.read_csv(ROOMS_PATH)
     rooms["Room_ID"] = rooms["Room_ID"].astype(int)
     rooms["label"] = rooms.apply(lambda row: f"{row.Room_Name}", axis=1)
+    room_ids = rooms["Room_ID"].tolist()
+    room_tree = cKDTree([positions[room_id] for room_id in room_ids])
     
     cache = pd.read_csv(CACHE_PATH)
     cache["Path"] = cache["Path"].map(ast.literal_eval)
@@ -36,7 +38,7 @@ def load_map_data():
         path = [int(node) for node in row.Path]
         routes[(int(row.Source), int(row.Target))] = (float(row.Distance), path)
         routes[(int(row.Target), int(row.Source))] = (float(row.Distance), path[::-1])
-    return graph, positions, rooms, routes
+    return graph, positions, rooms, routes, room_ids, room_tree
 
 
 def is_mobile_device():
@@ -80,7 +82,7 @@ def calculate_turn_direction(v1, v2):
         return "uturn", "Make a U-turn", "↩"
 
 
-def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, proximity_radius=5.0):
+def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, proximity_radius=5.0):
     connected = []
     
     curr_node = None
@@ -97,28 +99,28 @@ def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label
                     connected.append(r_name)
 
     if not connected:
-        connected_with_distance = []
+        if room_tree is None or room_ids is None:
+            return connected
 
-        for r_id in labels:
-            pos = positions.get(r_id)
-            if not pos:
+        nearby_indexes = room_tree.query_ball_point(pt, proximity_radius)
+        connected_with_distance = []
+        for index in nearby_indexes:
+            r_id = room_ids[index]
+            r_name = labels.get(r_id, f"Room {r_id}")
+            if r_name in (start_label, dest_label):
                 continue
 
-            d = math.hypot(pt[0] - pos[0], pt[1] - pos[1])
+            pos = positions[r_id]
+            distance = math.hypot(pt[0] - pos[0], pt[1] - pos[1])
+            connected_with_distance.append((r_name, distance))
 
-            if d <= proximity_radius:
-                r_name = labels.get(r_id, f"Room {r_id}")
-
-                if r_name not in (start_label, dest_label):
-                    connected_with_distance.append((r_name, d))
-
-        connected_with_distance.sort(key=lambda x: x[1])
+        connected_with_distance.sort(key=lambda item: item[1])
         connected = [r_name for r_name, _ in connected_with_distance]
 
     return connected
 
 
-def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None):
+def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None, room_ids=None, room_tree=None):
     if not path_coords or len(path_coords) < 2:
         return []
 
@@ -132,7 +134,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
     first_v = (next_pt[0] - start_pt[0], next_pt[1] - start_pt[1])
     first_dist = math.hypot(first_v[0], first_v[1])
     
-    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph)
+    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree)
     if start_conn and start_conn[0] != start_label:
         start_desc = f"Near {start_conn[0]}"
     else:
@@ -161,7 +163,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
         else:
             directions.append(curr_instruction)
 
-            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph)
+            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree)
             if conn_rooms:
                 if len(conn_rooms) == 1:
                     room_phrase = f"near {conn_rooms[0]}"
@@ -840,7 +842,7 @@ def handle_map_click(clicked_data, rooms, positions):
 def main():
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
     
-    graph, positions, rooms, routes = load_map_data()
+    graph, positions, rooms, routes, room_ids, room_tree = load_map_data()
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
@@ -965,7 +967,9 @@ def main():
                 labels=labels,
                 start_label=start_lbl,
                 dest_label=dest_lbl,
-                graph=graph
+                graph=graph,
+                room_ids=room_ids,
+                room_tree=room_tree,
             )
 
             render_directions_ui(directions)
