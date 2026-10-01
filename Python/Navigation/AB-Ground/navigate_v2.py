@@ -373,19 +373,27 @@ def handle_map_click(clicked_data):
     if dz and isinstance(dz, list) and len(dz) >= 2 and dz[0] and dz[1]:
         st.session_state.map_zoom = dz
 
-    new_dest = None
+    target_key = st.session_state.get("click_target")
+    if not target_key:
+        return False
+
+    selected_node = None
 
     if event.get("roomId"):
-        new_dest = int(event["roomId"])
+        selected_node = int(event["roomId"])
     elif event.get("value") and isinstance(event["value"], list) and len(event["value"]) >= 2:
         x, y = float(event["value"][0]), float(event["value"][1])
-        new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+        selected_node = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
     elif event.get("coords") and isinstance(event["coords"], list) and len(event["coords"]) > 0:
         x, y = float(event["coords"][0][0]), float(event["coords"][0][1])
-        new_dest = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+        selected_node = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
 
-    if new_dest is not None and st.session_state.get("destination") != new_dest:
-        st.session_state.destination = new_dest
+    if selected_node is not None:
+        st.session_state[target_key] = selected_node
+        if target_key == "origin":
+            st.session_state.click_target = "destination"
+        else:
+            st.session_state.click_target = None
         return True
 
     return False
@@ -393,6 +401,24 @@ def handle_map_click(clicked_data):
 
 def main():
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
+
+    st.markdown(
+        """
+        <style>
+        button[kind="primary"] {
+            background-color: #2ca25f !important;
+            border-color: #2ca25f !important;
+            color: #ffffff !important;
+        }
+        button[kind="primary"]:hover {
+            background-color: #238b50 !important;
+            border-color: #238b50 !important;
+            color: #ffffff !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
     graph, positions, rooms, routes = load_map_data()
 
@@ -407,6 +433,8 @@ def main():
         st.session_state.origin = "-"
     if "destination" not in st.session_state:
         st.session_state.destination = "-"
+    if "click_target" not in st.session_state:
+        st.session_state.click_target = "origin"
 
     st.title("AB Ground Floor Navigation")
     st.caption("Choose rooms or click a corridor to place the destination location.")
@@ -416,21 +444,61 @@ def main():
     with controls:
         default_origin = st.session_state.get("origin", "-")
         default_dest = st.session_state.get("destination", "-")
+        click_target = st.session_state.get("click_target")
 
-        origin = st.selectbox(
-            "Starting room (From)",
-            room_options,
-            index=room_options.index(default_origin) if default_origin in room_options else 0,
-            format_func=labels.get
-        )
-        destination = st.selectbox(
-            "Destination room (To)",
-            room_options,
-            index=room_options.index(default_dest) if default_dest in room_options else 0,
-            format_func=labels.get
-        )
+        c1, c2 = st.columns([3.5, 1.5])
+        with c1:
+            origin = st.selectbox(
+                "Starting room",
+                room_options,
+                index=room_options.index(default_origin) if default_origin in room_options else 0,
+                format_func=labels.get
+            )
+            if origin != default_origin:
+                st.session_state.origin = origin
+                if origin != "-":
+                    st.session_state.click_target = "destination"
+                st.rerun()
 
-        if origin == "-" or destination == "-":
+        with c2:
+            st.write("")
+            st.write("")
+            is_origin_active = click_target == "origin"
+            if st.button(
+                "Active" if is_origin_active else "Set on map",
+                key="btn_origin",
+                type="primary" if is_origin_active else "secondary"
+            ):
+                st.session_state.click_target = None if is_origin_active else "origin"
+                st.rerun()
+
+        c3, c4 = st.columns([3.5, 1.5])
+        with c3:
+            destination = st.selectbox(
+                "Destination room",
+                room_options,
+                index=room_options.index(default_dest) if default_dest in room_options else 0,
+                format_func=labels.get
+            )
+            if destination != default_dest:
+                st.session_state.destination = destination
+                if destination != "-":
+                    st.session_state.click_target = None
+                st.rerun()
+
+        with c4:
+            st.write("")
+            st.write("")
+            is_dest_active = click_target == "destination"
+            if st.button(
+                "Active" if is_dest_active else "Set on map",
+                key="btn_dest",
+                type="primary" if is_dest_active else "secondary"
+            ):
+                st.session_state.click_target = None if is_dest_active else "destination"
+                st.rerun()
+
+        if origin == "-" or destination == "-" or origin is None or destination is None:
             route_data = None
         elif origin == destination:
             st.info("Choose two different rooms to show a route.")
