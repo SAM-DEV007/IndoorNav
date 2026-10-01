@@ -102,6 +102,10 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
     zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
 
+    is_active = bool(st.session_state.get("click_target"))
+    cursor_style = "pointer" if is_active else "grab"
+    is_silent = not is_active
+
     series = []
 
     base_lines = []
@@ -111,21 +115,22 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         base_lines.append({"coords": [[x1, y1], [x2, y2]]})
 
     series.append({
-		"name": "Walkable path",
-		"type": "lines",
-		"coordinateSystem": "cartesian2d",
-		"data": base_lines,
-		"lineStyle": {
-			"color": "#d2dbde",
-			"width": 12,
-			"opacity": 1,
-			"cap": "round",
-			"join": "round"
-		},
-		"clip": False,
-		"silent": False,
-		"tooltip": {"show": False}
-	})
+        "name": "Walkable path",
+        "type": "lines",
+        "coordinateSystem": "cartesian2d",
+        "data": base_lines,
+        "lineStyle": {
+            "color": "#d2dbde",
+            "width": 12,
+            "opacity": 1,
+            "cap": "round",
+            "join": "round"
+        },
+        "clip": True,
+        "cursor": cursor_style,
+        "silent": is_silent,
+        "tooltip": {"show": False}
+    })
 
     series.append({
         "type": "lines",
@@ -138,7 +143,8 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
             "join": "round"
         },
         "clip": False,
-        "silent": False,
+        "cursor": cursor_style,
+        "silent": is_silent,
         "tooltip": {"show": False}
     })
 
@@ -199,6 +205,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "symbolSize": 10,
         "itemStyle": {"color": "#2f8fbd", "borderColor": "#17465d", "borderWidth": 1},
         "data": room_boxes,
+        "cursor": cursor_style,
         "z": 20
     })
 
@@ -209,6 +216,8 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "symbolSize": 0,
         "itemStyle": {"color": "#2f8fbd"},
         "data": room_labels,
+        "cursor": cursor_style,
+        "silent": is_silent,
         "z": 21
     })
 
@@ -265,6 +274,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "symbolSize": 15,
         "itemStyle": {"borderColor": "#202a2e", "borderWidth": 2},
         "data": gate_boxes,
+        "cursor": cursor_style,
         "z": 20
     })
 
@@ -275,6 +285,8 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "symbolSize": 0,
         "itemStyle": {"color": "#202a2e"},
         "data": gate_labels,
+        "cursor": cursor_style,
+        "silent": is_silent,
         "z": 21
     })
 
@@ -293,6 +305,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "type": "scatter",
         "data": marker_data,
         "z": 30,
+        "cursor": cursor_style,
         "silent": True,
         "tooltip": {"show": False}
     })
