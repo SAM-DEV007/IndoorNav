@@ -1,5 +1,6 @@
 import ast
 import math
+import textwrap
 
 from pathlib import Path
 from streamlit_echarts import st_echarts
@@ -36,6 +37,222 @@ def load_map_data():
         routes[(int(row.Source), int(row.Target))] = (float(row.Distance), path)
         routes[(int(row.Target), int(row.Source))] = (float(row.Distance), path[::-1])
     return graph, positions, rooms, routes
+
+
+def is_mobile_device():
+    if st.session_state.get("is_mobile") is not None:
+        return st.session_state.is_mobile
+    try:
+        if hasattr(st, "context") and hasattr(st.context, "headers"):
+            ua = st.context.headers.get("user-agent", "").lower()
+            sec_mob = st.context.headers.get("sec-ch-ua-mobile", "")
+            if sec_mob == "?1" or any(k in ua for k in ["mobile", "android", "iphone", "ipad"]):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def calculate_turn_direction(v1, v2):
+    dx1, dy1 = v1
+    dx2, dy2 = v2
+    
+    ang1 = math.atan2(dy1, dx1)
+    ang2 = math.atan2(dy2, dx2)
+    diff = math.degrees(ang2 - ang1)
+    diff = (diff + 180) % 360 - 180 
+
+    if -25 <= diff <= 25:
+        return "straight", "Continue straight", "↑"
+    elif 25 < diff <= 65:
+        return "slight_left", "Slight left", "↖"
+    elif 65 < diff <= 120:
+        return "left", "Turn left", "←"
+    elif 120 < diff <= 165:
+        return "sharp_left", "Sharp left", "↙"
+    elif -65 <= diff < -25:
+        return "slight_right", "Slight right", "↗"
+    elif -120 <= diff < -65:
+        return "right", "Turn right", "→"
+    elif -165 <= diff < -120:
+        return "sharp_right", "Sharp right", "↘"
+    else:
+        return "uturn", "Make a U-turn", "↩"
+
+
+def get_nearest_landmark(pt, rooms, positions, labels, exclude_pt=None):
+    best_name = None
+    min_dist = float("inf")
+    for r_id in rooms:
+        pos = positions.get(r_id)
+        if not pos:
+            continue
+        d = math.hypot(pt[0] - pos[0], pt[1] - pos[1])
+        if d < min_dist:
+            min_dist = d
+            best_name = labels.get(r_id, f"Room {r_id}")
+    return best_name, min_dist
+
+
+def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, proximity_radius=5.0):
+    connected = []
+    
+    curr_node = None
+    for n, pos in positions.items():
+        if math.hypot(pos[0] - pt[0], pos[1] - pt[1]) < 0.15:
+            curr_node = n
+            break
+
+    if graph and curr_node is not None and curr_node in graph:
+        for nbr in graph.neighbors(curr_node):
+            if nbr in labels:
+                r_name = labels.get(nbr, f"Room {nbr}")
+                if r_name not in connected and r_name not in (start_label, dest_label):
+                    connected.append(r_name)
+
+    if not connected:
+        connected_with_distance = []
+
+        for r_id in labels:
+            pos = positions.get(r_id)
+            if not pos:
+                continue
+
+            d = math.hypot(pt[0] - pos[0], pt[1] - pos[1])
+
+            if d <= proximity_radius:
+                r_name = labels.get(r_id, f"Room {r_id}")
+
+                if r_name not in (start_label, dest_label):
+                    connected_with_distance.append((r_name, d))
+
+        connected_with_distance.sort(key=lambda x: x[1])
+        connected = [r_name for r_name, _ in connected_with_distance]
+
+    return connected
+
+
+def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None):
+    if not path_coords or len(path_coords) < 2:
+        return []
+
+    start_marker_html = '<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#ffffff; border:3px solid #000000; box-sizing:border-box;"></span>'
+    dest_marker_html = '<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#2ca25f; border:2px solid #ffffff; outline:1.5px solid #2ca25f; box-sizing:border-box;"></span>'
+
+    directions = []
+
+    start_pt = path_coords[0]
+    next_pt = path_coords[1]
+    first_v = (next_pt[0] - start_pt[0], next_pt[1] - start_pt[1])
+    first_dist = math.hypot(first_v[0], first_v[1])
+    
+    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph)
+    if start_conn and start_conn[0] != start_label:
+        start_desc = f"Near {start_conn[0]}"
+    else:
+        near_start, _ = get_nearest_landmark(start_pt, rooms, positions, labels)
+        start_desc = f"Near {near_start}" if near_start and near_start != start_label else "Head down the hallway"
+
+    curr_instruction = {
+        "icon": start_marker_html,
+        "action": f"Depart from {start_label}",
+        "landmark": start_desc,
+        "distance": first_dist
+    }
+
+    for i in range(1, len(path_coords) - 1):
+        p_prev = path_coords[i - 1]
+        p_curr = path_coords[i]
+        p_next = path_coords[i + 1]
+
+        v_in = (p_curr[0] - p_prev[0], p_curr[1] - p_prev[1])
+        v_out = (p_next[0] - p_curr[0], p_next[1] - p_curr[1])
+        seg_dist = math.hypot(v_out[0], v_out[1])
+
+        m_code, m_label, m_icon = calculate_turn_direction(v_in, v_out)
+
+        if m_code == "straight":
+            curr_instruction["distance"] += seg_dist
+        else:
+            directions.append(curr_instruction)
+
+            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph)
+            if conn_rooms:
+                if len(conn_rooms) == 1:
+                    room_phrase = f"near {conn_rooms[0]}"
+                elif len(conn_rooms) == 2:
+                    room_phrase = f"near {conn_rooms[0]} and {conn_rooms[1]}"
+                else:
+                    room_phrase = f"near {conn_rooms[0]}"
+
+                action_title = f"{m_label} {room_phrase}"
+                sub_text = "Follow hallway corridor"
+            else:
+                action_title = m_label
+                near_lm, d = get_nearest_landmark(p_curr, rooms, positions, labels)
+                sub_text = f"Near {near_lm}" if near_lm and d <= 15.0 else "Follow hallway corridor"
+
+            arrow_html = f'<span style="font-size: 14px; font-weight: 800; color: #1a1a1a; line-height: 1;">{m_icon}</span>'
+
+            curr_instruction = {
+                "icon": arrow_html,
+                "action": action_title,
+                "landmark": sub_text,
+                "distance": seg_dist
+            }
+
+    directions.append(curr_instruction)
+
+    directions.append({
+        "icon": dest_marker_html,
+        "action": f"Arrive at {dest_label}",
+        "landmark": "Destination is ahead",
+        "distance": 0
+    })
+
+    return directions
+
+
+def render_directions_ui(directions):
+    if not directions:
+        return
+
+    items_html = []
+    for i, step in enumerate(directions):
+        is_last = (i == len(directions) - 1)
+        border_style = "" if is_last else "border-left: 2px dashed #b0bec5;"
+        dist_badge = (
+            f'<span style="font-size: 11px; font-weight: 600; color: #1976d2; background: #e3f2fd; padding: 2px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;">{step["distance"]:.2f} m</span>'
+            if step["distance"] > 0 else ""
+        )
+
+        item = f"""
+<div style="position: relative; padding-left: 24px; padding-bottom: {'4px' if is_last else '14px'}; {border_style} margin-left: 10px;">
+    <div style="position: absolute; left: -11px; top: -1px; width: 20px; height: 20px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.12); border: 1px solid #cfd8dc;">
+        {step["icon"]}
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span style="font-weight: 600; font-size: 13px; color: #212121;">{step["action"]}</span>
+        {dist_badge}
+    </div>
+    <div style="font-size: 11px; color: #616161; margin-top: 2px;">
+        {step["landmark"]}
+    </div>
+</div>"""
+        items_html.append(item)
+
+    full_html = f"""
+<div style="margin-top: 15px; border-radius: 8px; background-color: #ffffff; border: 1px solid #e0e0e0; padding: 12px; font-family: sans-serif;">
+    <div style="font-weight: 700; font-size: 14px; color: #263238; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+        Step-by-Step Navigation
+    </div>
+    {''.join(items_html)}
+</div>"""
+
+    if hasattr(st, "html"):
+        st.html(full_html)
+    else:
+        st.markdown(full_html, unsafe_allow_html=True)
 
 
 def project_point_on_segment(p, a, b):
@@ -605,8 +822,8 @@ def handle_map_click(clicked_data, rooms, positions):
     if target_key == "origin":
         if edge and click_pt:
             u, v = edge
-            pos_u = st.session_state.positions[u]
-            pos_v = st.session_state.positions[v]
+            pos_u = positions[u]
+            pos_v = positions[v]
             snapped_x, snapped_y = project_point_on_segment(click_pt, pos_u, pos_v)
             st.session_state.custom_origin = {
                 "point": (snapped_x, snapped_y),
@@ -744,8 +961,30 @@ def main():
             else:
                 st.warning("No path found between selected rooms.")
 
-        if route_distance is not None:
+        if route_distance is not None and route_coords:
             st.metric(label="Route distance", value=f"{route_distance:.2f} m")
+
+            if origin == "Custom":
+                start_lbl = "Custom Pin"
+            else:
+                start_lbl = labels.get(origin, labels.get(int(origin) if str(origin).isdigit() else origin, "Start"))
+
+            dest_lbl = labels.get(destination, labels.get(int(destination) if str(destination).isdigit() else destination, "Destination"))
+
+            active_rooms = st.session_state.get("rooms", rooms if "rooms" in locals() else [])
+            active_positions = st.session_state.get("positions", positions if "positions" in locals() else {})
+
+            directions = generate_directions(
+                path_coords=route_coords,
+                rooms=active_rooms,
+                positions=active_positions,
+                labels=labels,
+                start_label=start_lbl,
+                dest_label=dest_lbl,
+                graph=graph
+            )
+
+            render_directions_ui(directions)
 
     with map_column:
         options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination)
@@ -845,7 +1084,7 @@ def main():
         clicked_data = st_echarts(
             options=options,
             events=events,
-            height="650px",
+            height="350px" if is_mobile_device() else "650px",
             key="floorplan"
         )
 
