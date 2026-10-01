@@ -38,6 +38,25 @@ def load_map_data():
     return graph, positions, rooms, routes
 
 
+def project_point_on_segment(p, a, b):
+    px, py = p
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    line_len_sq = dx * dx + dy * dy
+
+    if line_len_sq == 0:
+        return ax, ay
+    
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / line_len_sq))
+
+    return ax + t * dx, ay + t * dy
+
+
+def euclidean_dist(p1, p2):
+    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+
 def nearest_room(x, y, rooms, positions):
     return min(
         rooms.Room_ID,
@@ -86,7 +105,7 @@ def room_label_layout(room_id, graph, positions):
 	return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
-def get_echarts_options(graph, positions, rooms, route, origin, destination):
+def get_echarts_options(graph, positions, rooms, route_coords, origin, destination):
     all_x, all_y = zip(*positions.values())
     x_span = max(all_x) - min(all_x)
     y_span = max(all_y) - min(all_y)
@@ -112,7 +131,10 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     for left, right in graph.edges:
         x1, y1 = positions[left]
         x2, y2 = positions[right]
-        base_lines.append({"coords": [[x1, y1], [x2, y2]]})
+        base_lines.append({
+            "coords": [[x1, y1], [x2, y2]],
+            "edge": [int(left), int(right)]
+        })
 
     series.append({
         "name": "Walkable path",
@@ -148,8 +170,7 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
         "tooltip": {"show": False}
     })
 
-    if route:
-        route_coords = [[positions[node][0], positions[node][1]] for node in route]
+    if route_coords:
         series.append({
             "name": "Shortest route",
             "type": "lines",
@@ -291,14 +312,27 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     })
 
     marker_data = []
-    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 15)):
-        if room_id in (None, "-"):
-            continue
-        x, y = positions[int(room_id)]
+    if origin == "Custom" and st.session_state.get("custom_origin"):
+        cx, cy = st.session_state.custom_origin["point"]
         marker_data.append({
-            "value": [x, y],
-            "symbolSize": size,
-            "itemStyle": {"color": color, "borderColor": "#202a2e", "borderWidth": 2}
+            "value": [cx, cy],
+            "symbolSize": 10,
+            "itemStyle": {"color": "#ffffff", "borderColor": "#202a2e", "borderWidth": 2}
+        })
+    elif origin not in (None, "-"):
+        ox, oy = positions[int(origin)]
+        marker_data.append({
+            "value": [ox, oy],
+            "symbolSize": 10,
+            "itemStyle": {"color": "#ffffff", "borderColor": "#202a2e", "borderWidth": 2}
+        })
+
+    if destination not in (None, "-"):
+        dx, dy = positions[int(destination)]
+        marker_data.append({
+            "value": [dx, dy],
+            "symbolSize": 15,
+            "itemStyle": {"color": "#2ca25f", "borderColor": "#202a2e", "borderWidth": 2}
         })
 
     series.append({
@@ -390,24 +424,51 @@ def handle_map_click(clicked_data):
     if not target_key:
         return False
 
-    selected_node = None
+    click_pt = event.get("clickCoord")
+    edge = event.get("edge")
+    coords = event.get("coords")
 
-    if event.get("roomId"):
-        selected_node = int(event["roomId"])
-    elif event.get("value") and isinstance(event["value"], list) and len(event["value"]) >= 2:
-        x, y = float(event["value"][0]), float(event["value"][1])
-        selected_node = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
-    elif event.get("coords") and isinstance(event["coords"], list) and len(event["coords"]) > 0:
-        x, y = float(event["coords"][0][0]), float(event["coords"][0][1])
-        selected_node = int(nearest_room(x, y, st.session_state.rooms, st.session_state.positions))
+    if not edge and coords and len(coords) == 2:
+        c1, c2 = coords[0], coords[1]
+        matched_u, matched_v = None, None
+        for node, pos in st.session_state.positions.items():
+            if math.isclose(pos[0], c1[0], abs_tol=1e-3) and math.isclose(pos[1], c1[1], abs_tol=1e-3):
+                matched_u = node
+            elif math.isclose(pos[0], c2[0], abs_tol=1e-3) and math.isclose(pos[1], c2[1], abs_tol=1e-3):
+                matched_v = node
+        if matched_u is not None and matched_v is not None:
+            edge = [matched_u, matched_v]
 
-    if selected_node is not None:
-        st.session_state[target_key] = selected_node
-        if target_key == "origin":
+    if target_key == "origin":
+        if edge and click_pt:
+            u, v = edge
+            pos_u = st.session_state.positions[u]
+            pos_v = st.session_state.positions[v]
+            snapped_x, snapped_y = project_point_on_segment(click_pt, pos_u, pos_v)
+            st.session_state.custom_origin = {
+                "point": (snapped_x, snapped_y),
+                "edge": (u, v)
+            }
+            st.session_state.origin = "Custom"
             st.session_state.click_target = "destination"
-        else:
+            return True
+        elif event.get("roomId"):
+            st.session_state.origin = int(event["roomId"])
+            st.session_state.custom_origin = None
+            st.session_state.click_target = "destination"
+            return True
+
+    elif target_key == "destination":
+        selected_room = None
+        if event.get("roomId"):
+            selected_room = int(event["roomId"])
+        elif click_pt:
+            selected_room = int(nearest_room(click_pt[0], click_pt[1], st.session_state.rooms, st.session_state.positions))
+        
+        if selected_room is not None:
+            st.session_state.destination = selected_room
             st.session_state.click_target = None
-        return True
+            return True
 
     return False
 
@@ -440,7 +501,9 @@ def main():
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
-    room_options = ["-"] + list(rooms.Room_ID)
+    labels["Custom"] = "Custom (Path)"
+
+    room_options = ["-"] + (["Custom"] if st.session_state.get("origin") == "Custom" else []) + list(rooms.Room_ID)
 
     if "origin" not in st.session_state:
         st.session_state.origin = "-"
@@ -511,20 +574,66 @@ def main():
                 st.session_state.click_target = None if is_dest_active else "destination"
                 st.rerun()
 
+        route_coords = None
+        route_distance = None
+
         if origin == "-" or destination == "-" or origin is None or destination is None:
-            route_data = None
+            pass
+
         elif origin == destination:
             st.info("Choose two different rooms to show a route.")
-            route_data = None
+
+        elif origin == "Custom":
+            custom = st.session_state.get("custom_origin")
+            dest_node = int(destination)
+            if custom and dest_node in graph:
+                pt = custom["point"]
+                u, v = custom["edge"]
+
+                dist_p_u = euclidean_dist(pt, positions[u])
+                dist_p_v = euclidean_dist(pt, positions[v])
+
+                d_u, path_u = nx.bidirectional_dijkstra(graph, u, dest_node, weight="weight")
+                total_u = dist_p_u + d_u
+
+                d_v, path_v = nx.bidirectional_dijkstra(graph, v, dest_node, weight="weight")
+                total_v = dist_p_v + d_v
+
+                if total_u < total_v and path_u:
+                    route_distance = total_u
+                    route_coords = [list(pt)] + [[positions[n][0], positions[n][1]] for n in path_u]
+                elif path_v:
+                    route_distance = total_v
+                    route_coords = [list(pt)] + [[positions[n][0], positions[n][1]] for n in path_v]
+                else:
+                    st.warning("No path found to destination.")
+
         else:
-            route_data = routes.get((int(origin), int(destination)))
-            if route_data:
-                st.metric("Route distance", f"{route_data[0]:.2f} m")
+            orig_node = int(origin)
+            dest_node = int(destination)
+
+            cached = routes.get((orig_node, dest_node))
+            if cached:
+                route_distance, best_path = cached[0], cached[1]
             else:
-                st.warning("No cached route exists for this pair.")
+                route_distance, best_path = nx.bidirectional_dijkstra(graph, orig_node, dest_node, weight="weight")
+
+            if best_path:
+                route_coords = [[positions[n][0], positions[n][1]] for n in best_path]
+            else:
+                st.warning("No path found between selected rooms.")
+
+        if route_distance is not None:
+            st.metric(label="Route distance", value=f"{route_distance:.2f} m")
 
     with map_column:
-        options = get_echarts_options(graph, positions, rooms, route_data[1] if route_data else None, origin, destination)
+        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination)
+
+        all_x, all_y = zip(*positions.values())
+        x_span = max(all_x) - min(all_x)
+        y_span = max(all_y) - min(all_y)
+        min_x, max_x = min(all_x) - x_span * 0.08, max(all_x) + x_span * 0.08
+        min_y, max_y = min(all_y) - y_span * 0.08, max(all_y) + y_span * 0.08
 
         events = {
             "datazoom": """function(p) {
@@ -537,14 +646,83 @@ def main():
                     }
                 }
             }""",
-            "click": """function(params) {
-                return {
+            "click": f"""function(params) {{
+                var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+                var clickPt = null;
+
+                var pe = params.event || {{}};
+                var nativeEvt = pe.event || pe;
+                var rect = dom ? dom.getBoundingClientRect() : null;
+                var px = (pe.zrX !== undefined) ? pe.zrX : ((pe.offsetX !== undefined) ? pe.offsetX : (rect && nativeEvt.clientX !== undefined ? nativeEvt.clientX - rect.left : null));
+                var py = (pe.zrY !== undefined) ? pe.zrY : ((pe.offsetY !== undefined ? pe.offsetY : (rect && nativeEvt.clientY !== undefined ? nativeEvt.clientY - rect.top : null)));
+
+                var ec = null;
+                if (window.echarts && dom) {{
+                    try {{ ec = window.echarts.getInstanceByDom(dom); }} catch(e) {{}}
+                }}
+                if (!ec && dom) {{
+                    for (var k in dom) {{
+                        if (k.indexOf('__reactFiber') === 0 || k.indexOf('__reactInternalInstance') === 0) {{
+                            var f = dom[k];
+                            while (f) {{
+                                if (f.stateNode) {{
+                                    if (typeof f.stateNode.getEchartsInstance === 'function') {{
+                                        ec = f.stateNode.getEchartsInstance();
+                                        break;
+                                    }}
+                                    if (f.stateNode.echartsInstance) {{
+                                        ec = f.stateNode.echartsInstance;
+                                        break;
+                                    }}
+                                }}
+                                f = f.return;
+                            }}
+                        }}
+                        if (ec) break;
+                    }}
+                }}
+
+                if (ec && px !== null && py !== null) {{
+                    try {{
+                        clickPt = ec.convertFromPixel({{gridIndex: 0}}, [px, py]);
+                    }} catch(e) {{}}
+                }}
+
+                if (!clickPt && px !== null && py !== null && dom) {{
+                    var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
+                    var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
+                    
+                    var minX = {min_x}, maxX = {max_x};
+                    var minY = {min_y}, maxY = {max_y};
+                    
+                    var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
+                    var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
+                    var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
+                    var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
+                    
+                    var gridLeft = 40;
+                    var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 40;
+                    var gridTop = 60;
+                    var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 30;
+                    
+                    var normX = (px - gridLeft) / (gridRight - gridLeft);
+                    var normY = (gridBottom - py) / (gridBottom - gridTop);
+                    
+                    clickPt = [
+                        curMinX + normX * (curMaxX - curMinX),
+                        curMinY + normY * (curMaxY - curMinY)
+                    ];
+                }}
+
+                return {{
                     roomId: params.data ? params.data.roomId : null,
                     value: params.value,
-                    coords: params.data ? params.data.coords : null,
+                    coords: (params.data && params.data.coords) ? params.data.coords : null,
+                    edge: (params.data && params.data.edge) ? params.data.edge : null,
+                    clickCoord: clickPt,
                     dataZoom: window._mapZoom || null
-                };
-            }"""
+                }};
+            }}"""
         }
 
         clicked_data = st_echarts(
