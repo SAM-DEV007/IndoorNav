@@ -346,14 +346,12 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
 
     click_target = st.session_state.get("click_target")
 
-    # Start button styling
     start_active = click_target == "origin"
     start_bg = "#2ca25f" if start_active else "#ffffff"
     start_border = "#2ca25f" if start_active else "#b0bec5"
     start_text_color = "#ffffff" if start_active else "#263238"
     start_label = "Start: Active" if start_active else "Set Start"
 
-    # Destination button styling
     dest_active = click_target == "destination"
     dest_bg = "#2ca25f" if dest_active else "#ffffff"
     dest_border = "#2ca25f" if dest_active else "#b0bec5"
@@ -363,9 +361,50 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
     btn_h = 30
     btn1_w = 105
     btn2_w = 125
+    btn_clear_w = 85
     gap = 10
 
     graphic_buttons = [
+        {
+            "type": "group",
+            "left": 20,
+            "top": 14,
+            "width": btn_clear_w,
+            "height": btn_h,
+            "cursor": "pointer",
+            "info": "clear_path",
+            "z": 100,
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {"width": btn_clear_w, "height": btn_h, "r": 6},
+                    "style": {
+                        "fill": "#ffffff",
+                        "stroke": "#e63946",
+                        "lineWidth": 1.5,
+                        "shadowBlur": 4,
+                        "shadowColor": "rgba(0,0,0,0.12)",
+                        "shadowOffsetY": 2
+                    },
+                    "cursor": "pointer",
+                    "info": "clear_path"
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": "Clear Path",
+                        "fill": "#e63946",
+                        "font": "600 11px sans-serif"
+                    },
+                    "cursor": "pointer",
+                    "info": "clear_path"
+                }
+            ]
+        },
         {
             "type": "group",
             "right": 20 + btn2_w + gap,
@@ -532,7 +571,13 @@ def handle_map_click(clicked_data):
         st.session_state.map_zoom = dz
 
     action = event.get("graphicAction")
-    if action == "toggle_origin":
+    if action == "clear_path":
+        st.session_state.origin = "-"
+        st.session_state.destination = "-"
+        st.session_state.custom_origin = None
+        st.session_state.click_target = None
+        return True
+    elif action == "toggle_origin":
         curr = st.session_state.get("click_target")
         st.session_state.click_target = None if curr == "origin" else "origin"
         return True
