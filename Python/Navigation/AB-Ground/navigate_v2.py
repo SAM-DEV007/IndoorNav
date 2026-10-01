@@ -344,23 +344,134 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         "tooltip": {"show": False}
     })
 
+    click_target = st.session_state.get("click_target")
+
+    # Start button styling
+    start_active = click_target == "origin"
+    start_bg = "#2ca25f" if start_active else "#ffffff"
+    start_border = "#2ca25f" if start_active else "#b0bec5"
+    start_text_color = "#ffffff" if start_active else "#263238"
+    start_label = "Start: Active" if start_active else "Set Start"
+
+    # Destination button styling
+    dest_active = click_target == "destination"
+    dest_bg = "#2ca25f" if dest_active else "#ffffff"
+    dest_border = "#2ca25f" if dest_active else "#b0bec5"
+    dest_text_color = "#ffffff" if dest_active else "#263238"
+    dest_label = "Destination: Active" if dest_active else "Set Destination"
+
+    btn_h = 30
+    btn1_w = 105
+    btn2_w = 125
+    gap = 10
+
+    graphic_buttons = [
+        {
+            "type": "group",
+            "right": 20 + btn2_w + gap,
+            "top": 14,
+            "width": btn1_w,
+            "height": btn_h,
+            "cursor": "pointer",
+            "info": "toggle_origin",
+            "z": 100,
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {"width": btn1_w, "height": btn_h, "r": 6},
+                    "style": {
+                        "fill": start_bg,
+                        "stroke": start_border,
+                        "lineWidth": 1.5,
+                        "shadowBlur": 4,
+                        "shadowColor": "rgba(0,0,0,0.12)",
+                        "shadowOffsetY": 2
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_origin"
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": start_label,
+                        "fill": start_text_color,
+                        "font": "600 11px sans-serif"
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_origin"
+                }
+            ]
+        },
+        {
+            "type": "group",
+            "right": 20,
+            "top": 14,
+            "width": btn2_w,
+            "height": btn_h,
+            "cursor": "pointer",
+            "info": "toggle_dest",
+            "z": 100,
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {"width": btn2_w, "height": btn_h, "r": 6},
+                    "style": {
+                        "fill": dest_bg,
+                        "stroke": dest_border,
+                        "lineWidth": 1.5,
+                        "shadowBlur": 4,
+                        "shadowColor": "rgba(0,0,0,0.12)",
+                        "shadowOffsetY": 2
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_dest"
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": dest_label,
+                        "fill": dest_text_color,
+                        "font": "600 11px sans-serif"
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_dest"
+                }
+            ]
+        }
+    ]
+
     options = {
         "backgroundColor": "#fbfaf6",
+        "graphic": graphic_buttons,
         "grid": {
             "show": True,
             "borderColor": "#b0bec5",
             "borderWidth": 1.5,
-            "left": 40,
-            "right": 40,
-            "top": 60,
-            "bottom": 30
+            "left": 35,
+            "right": 35,
+            "top": 55,
+            "bottom": 48
         },
         "legend": {
-            "data": ["Rooms", "Room names", "Gates", "Gate names", "Start", "Destination"],
-            "top": 0,
-            "left": 10,
-            "textStyle": {"color": "#263238", "fontSize": 12},
-            "itemGap": 15
+            "data": ["Rooms", "Room names", "Gates", "Gate names"],
+            "bottom": 6,
+            "left": "center",
+            "orient": "horizontal",
+            "itemGap": 10,
+            "itemWidth": 14,
+            "itemHeight": 10,
+            "textStyle": {
+                "color": "#263238",
+                "fontSize": 10
+            }
         },
         "xAxis": {
             "show": False,
@@ -420,24 +531,22 @@ def handle_map_click(clicked_data):
     if dz and isinstance(dz, list) and len(dz) >= 2 and dz[0] and dz[1]:
         st.session_state.map_zoom = dz
 
+    action = event.get("graphicAction")
+    if action == "toggle_origin":
+        curr = st.session_state.get("click_target")
+        st.session_state.click_target = None if curr == "origin" else "origin"
+        return True
+    elif action == "toggle_dest":
+        curr = st.session_state.get("click_target")
+        st.session_state.click_target = None if curr == "destination" else "destination"
+        return True
+
     target_key = st.session_state.get("click_target")
     if not target_key:
         return False
 
     click_pt = event.get("clickCoord")
     edge = event.get("edge")
-    coords = event.get("coords")
-
-    if not edge and coords and len(coords) == 2:
-        c1, c2 = coords[0], coords[1]
-        matched_u, matched_v = None, None
-        for node, pos in st.session_state.positions.items():
-            if math.isclose(pos[0], c1[0], abs_tol=1e-3) and math.isclose(pos[1], c1[1], abs_tol=1e-3):
-                matched_u = node
-            elif math.isclose(pos[0], c2[0], abs_tol=1e-3) and math.isclose(pos[1], c2[1], abs_tol=1e-3):
-                matched_v = node
-        if matched_u is not None and matched_v is not None:
-            edge = [matched_u, matched_v]
 
     if target_key == "origin":
         if edge and click_pt:
@@ -464,7 +573,7 @@ def handle_map_click(clicked_data):
             selected_room = int(event["roomId"])
         elif click_pt:
             selected_room = int(nearest_room(click_pt[0], click_pt[1], st.session_state.rooms, st.session_state.positions))
-        
+
         if selected_room is not None:
             st.session_state.destination = selected_room
             st.session_state.click_target = None
@@ -475,24 +584,6 @@ def handle_map_click(clicked_data):
 
 def main():
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
-
-    st.markdown(
-        """
-        <style>
-        button[kind="primary"] {
-            background-color: #2ca25f !important;
-            border-color: #2ca25f !important;
-            color: #ffffff !important;
-        }
-        button[kind="primary"]:hover {
-            background-color: #238b50 !important;
-            border-color: #238b50 !important;
-            color: #ffffff !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
     
     graph, positions, rooms, routes = load_map_data()
 
@@ -520,59 +611,30 @@ def main():
     with controls:
         default_origin = st.session_state.get("origin", "-")
         default_dest = st.session_state.get("destination", "-")
-        click_target = st.session_state.get("click_target")
 
-        c1, c2 = st.columns([3.5, 1.5])
-        with c1:
-            origin = st.selectbox(
-                "Starting room",
-                room_options,
-                index=room_options.index(default_origin) if default_origin in room_options else 0,
-                format_func=labels.get
-            )
-            if origin != default_origin:
-                st.session_state.origin = origin
-                if origin != "-":
-                    st.session_state.click_target = "destination"
-                st.rerun()
+        origin = st.selectbox(
+            "Starting room",
+            room_options,
+            index=room_options.index(default_origin) if default_origin in room_options else 0,
+            format_func=labels.get
+        )
+        if origin != default_origin:
+            st.session_state.origin = origin
+            if origin != "-":
+                st.session_state.click_target = "destination"
+            st.rerun()
 
-        with c2:
-            st.write("")
-            st.write("")
-            is_origin_active = click_target == "origin"
-            if st.button(
-                "Active" if is_origin_active else "Set on map",
-                key="btn_origin",
-                type="primary" if is_origin_active else "secondary"
-            ):
-                st.session_state.click_target = None if is_origin_active else "origin"
-                st.rerun()
-
-        c3, c4 = st.columns([3.5, 1.5])
-        with c3:
-            destination = st.selectbox(
-                "Destination room",
-                room_options,
-                index=room_options.index(default_dest) if default_dest in room_options else 0,
-                format_func=labels.get
-            )
-            if destination != default_dest:
-                st.session_state.destination = destination
-                if destination != "-":
-                    st.session_state.click_target = None
-                st.rerun()
-
-        with c4:
-            st.write("")
-            st.write("")
-            is_dest_active = click_target == "destination"
-            if st.button(
-                "Active" if is_dest_active else "Set on map",
-                key="btn_dest",
-                type="primary" if is_dest_active else "secondary"
-            ):
-                st.session_state.click_target = None if is_dest_active else "destination"
-                st.rerun()
+        destination = st.selectbox(
+            "Destination room",
+            room_options,
+            index=room_options.index(default_dest) if default_dest in room_options else 0,
+            format_func=labels.get
+        )
+        if destination != default_dest:
+            st.session_state.destination = destination
+            if destination != "-":
+                st.session_state.click_target = None
+            st.rerun()
 
         route_coords = None
         route_distance = None
@@ -647,14 +709,35 @@ def main():
                 }
             }""",
             "click": f"""function(params) {{
+                var gInfo = params.info || (params.target && params.target.info);
+                if (params.componentType === 'graphic' || gInfo) {{
+                    return {{
+                        graphicAction: gInfo,
+                        dataZoom: window._mapZoom || null
+                    }};
+                }}
+
                 var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
                 var clickPt = null;
 
                 var pe = params.event || {{}};
                 var nativeEvt = pe.event || pe;
                 var rect = dom ? dom.getBoundingClientRect() : null;
-                var px = (pe.zrX !== undefined) ? pe.zrX : ((pe.offsetX !== undefined) ? pe.offsetX : (rect && nativeEvt.clientX !== undefined ? nativeEvt.clientX - rect.left : null));
-                var py = (pe.zrY !== undefined) ? pe.zrY : ((pe.offsetY !== undefined) ? pe.offsetY : (rect && nativeEvt.clientY !== undefined ? nativeEvt.clientY - rect.top : null));
+
+                var touch = (nativeEvt.changedTouches && nativeEvt.changedTouches[0]) ||
+                            (nativeEvt.touches && nativeEvt.touches[0]) ||
+                            nativeEvt;
+
+                var clientX = touch.clientX !== undefined ? touch.clientX : null;
+                var clientY = touch.clientY !== undefined ? touch.clientY : null;
+
+                var px = (pe.zrX !== undefined) ? pe.zrX : (
+                        (pe.offsetX !== undefined) ? pe.offsetX : (
+                        (rect && clientX !== null) ? clientX - rect.left : null));
+
+                var py = (pe.zrY !== undefined) ? pe.zrY : (
+                        (pe.offsetY !== undefined) ? pe.offsetY : (
+                        (rect && clientY !== null) ? clientY - rect.top : null));
 
                 if (px !== null && py !== null && dom) {{
                     var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
