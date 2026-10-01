@@ -654,60 +654,28 @@ def main():
                 var nativeEvt = pe.event || pe;
                 var rect = dom ? dom.getBoundingClientRect() : null;
                 var px = (pe.zrX !== undefined) ? pe.zrX : ((pe.offsetX !== undefined) ? pe.offsetX : (rect && nativeEvt.clientX !== undefined ? nativeEvt.clientX - rect.left : null));
-                var py = (pe.zrY !== undefined) ? pe.zrY : ((pe.offsetY !== undefined ? pe.offsetY : (rect && nativeEvt.clientY !== undefined ? nativeEvt.clientY - rect.top : null)));
+                var py = (pe.zrY !== undefined) ? pe.zrY : ((pe.offsetY !== undefined) ? pe.offsetY : (rect && nativeEvt.clientY !== undefined ? nativeEvt.clientY - rect.top : null));
 
-                var ec = null;
-                if (window.echarts && dom) {{
-                    try {{ ec = window.echarts.getInstanceByDom(dom); }} catch(e) {{}}
-                }}
-                if (!ec && dom) {{
-                    for (var k in dom) {{
-                        if (k.indexOf('__reactFiber') === 0 || k.indexOf('__reactInternalInstance') === 0) {{
-                            var f = dom[k];
-                            while (f) {{
-                                if (f.stateNode) {{
-                                    if (typeof f.stateNode.getEchartsInstance === 'function') {{
-                                        ec = f.stateNode.getEchartsInstance();
-                                        break;
-                                    }}
-                                    if (f.stateNode.echartsInstance) {{
-                                        ec = f.stateNode.echartsInstance;
-                                        break;
-                                    }}
-                                }}
-                                f = f.return;
-                            }}
-                        }}
-                        if (ec) break;
-                    }}
-                }}
-
-                if (ec && px !== null && py !== null) {{
-                    try {{
-                        clickPt = ec.convertFromPixel({{gridIndex: 0}}, [px, py]);
-                    }} catch(e) {{}}
-                }}
-
-                if (!clickPt && px !== null && py !== null && dom) {{
+                if (px !== null && py !== null && dom) {{
                     var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
                     var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
-                    
+
                     var minX = {min_x}, maxX = {max_x};
                     var minY = {min_y}, maxY = {max_y};
-                    
+
                     var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
                     var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
                     var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
                     var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
-                    
+
                     var gridLeft = 40;
                     var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 40;
                     var gridTop = 60;
                     var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 30;
-                    
+
                     var normX = (px - gridLeft) / (gridRight - gridLeft);
                     var normY = (gridBottom - py) / (gridBottom - gridTop);
-                    
+
                     clickPt = [
                         curMinX + normX * (curMaxX - curMinX),
                         curMinY + normY * (curMaxY - curMinY)
