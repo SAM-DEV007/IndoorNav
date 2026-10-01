@@ -80,20 +80,6 @@ def calculate_turn_direction(v1, v2):
         return "uturn", "Make a U-turn", "↩"
 
 
-def get_nearest_landmark(pt, rooms, positions, labels, exclude_pt=None):
-    best_name = None
-    min_dist = float("inf")
-    for r_id in rooms:
-        pos = positions.get(r_id)
-        if not pos:
-            continue
-        d = math.hypot(pt[0] - pos[0], pt[1] - pos[1])
-        if d < min_dist:
-            min_dist = d
-            best_name = labels.get(r_id, f"Room {r_id}")
-    return best_name, min_dist
-
-
 def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, proximity_radius=5.0):
     connected = []
     
@@ -150,8 +136,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
     if start_conn and start_conn[0] != start_label:
         start_desc = f"Near {start_conn[0]}"
     else:
-        near_start, _ = get_nearest_landmark(start_pt, rooms, positions, labels)
-        start_desc = f"Near {near_start}" if near_start and near_start != start_label else "Head down the hallway"
+        start_desc = "Head down the hallway"
 
     curr_instruction = {
         "icon": start_marker_html,
@@ -189,8 +174,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
                 sub_text = "Follow hallway corridor"
             else:
                 action_title = m_label
-                near_lm, d = get_nearest_landmark(p_curr, rooms, positions, labels)
-                sub_text = f"Near {near_lm}" if near_lm and d <= 15.0 else "Follow hallway corridor"
+                sub_text = "Follow hallway corridor"
 
             arrow_html = f'<span style="font-size: 14px; font-weight: 800; color: #1a1a1a; line-height: 1;">{m_icon}</span>'
 
