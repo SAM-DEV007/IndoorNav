@@ -164,7 +164,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
             "cap": "round",
             "join": "round"
         },
-        "clip": False,
+        "clip": True,
         "cursor": cursor_style,
         "silent": is_silent,
         "tooltip": {"show": False}
@@ -184,7 +184,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
                 "cap": "round",
                 "join": "round"
             },
-            "clip": False,
+            "clip": True,
             "z": 10,
             "silent": True,
             "tooltip": {"show": False}
@@ -763,8 +763,6 @@ def main():
                 }}
 
                 var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
-                var clickPt = null;
-
                 var pe = params.event || {{}};
                 var nativeEvt = pe.event || pe;
                 var rect = dom ? dom.getBoundingClientRect() : null;
@@ -784,31 +782,42 @@ def main():
                         (pe.offsetY !== undefined) ? pe.offsetY : (
                         (rect && clientY !== null) ? clientY - rect.top : null));
 
-                if (px !== null && py !== null && dom) {{
-                    var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
-                    var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
+                // Grid boundaries (match these to your options.grid settings)
+                var gridLeft = 35;
+                var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
+                var gridTop = 55;
+                var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 48;
 
-                    var minX = {min_x}, maxX = {max_x};
-                    var minY = {min_y}, maxY = {max_y};
-
-                    var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
-                    var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
-                    var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
-                    var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
-
-                    var gridLeft = 40;
-                    var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 40;
-                    var gridTop = 60;
-                    var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 30;
-
-                    var normX = (px - gridLeft) / (gridRight - gridLeft);
-                    var normY = (gridBottom - py) / (gridBottom - gridTop);
-
-                    clickPt = [
-                        curMinX + normX * (curMaxX - curMinX),
-                        curMinY + normY * (curMaxY - curMinY)
-                    ];
+                // Reject any clicks landing outside the grid area
+                if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
+                    return {{
+                        roomId: null,
+                        value: null,
+                        coords: null,
+                        edge: null,
+                        clickCoord: null,
+                        dataZoom: window._mapZoom || null
+                    }};
                 }}
+
+                var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
+                var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
+
+                var minX = {min_x}, maxX = {max_x};
+                var minY = {min_y}, maxY = {max_y};
+
+                var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
+                var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
+                var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
+                var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
+
+                var normX = (px - gridLeft) / (gridRight - gridLeft);
+                var normY = (gridBottom - py) / (gridBottom - gridTop);
+
+                var clickPt = [
+                    curMinX + normX * (curMaxX - curMinX),
+                    curMinY + normY * (curMaxY - curMinY)
+                ];
 
                 return {{
                     roomId: params.data ? params.data.roomId : null,
