@@ -358,130 +358,139 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
     dest_text_color = "#ffffff" if dest_active else "#263238"
     dest_label = "Destination: Active" if dest_active else "Set Destination"
 
-    btn_h = 30
-    btn1_w = 105
-    btn2_w = 125
+    btn_h = 28
     btn_clear_w = 85
-    gap = 10
+    btn_start_w = 95
+    btn_dest_w = 125
+    gap = 8
+
+    total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
 
     graphic_buttons = [
         {
             "type": "group",
-            "left": 20,
-            "top": 14,
-            "width": btn_clear_w,
+            "left": "center",
+            "top": 12,
+            "width": total_w,
             "height": btn_h,
-            "cursor": "pointer",
-            "info": "clear_path",
             "z": 100,
             "children": [
                 {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {"width": btn_clear_w, "height": btn_h, "r": 6},
-                    "style": {
-                        "fill": "#ffffff",
-                        "stroke": "#e63946",
-                        "lineWidth": 1.5,
-                        "shadowBlur": 4,
-                        "shadowColor": "rgba(0,0,0,0.12)",
-                        "shadowOffsetY": 2
-                    },
+                    "type": "group",
+                    "left": 0,
+                    "top": 0,
+                    "width": btn_clear_w,
+                    "height": btn_h,
                     "cursor": "pointer",
-                    "info": "clear_path"
+                    "info": "clear_path",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {"width": btn_clear_w, "height": btn_h, "r": 5},
+                            "style": {
+                                "fill": "#ffffff",
+                                "stroke": "#e63946",
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": "Clear Path",
+                                "fill": "#e63946",
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
+                        }
+                    ]
                 },
                 {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": "Clear Path",
-                        "fill": "#e63946",
-                        "font": "600 11px sans-serif"
-                    },
+                    "type": "group",
+                    "left": btn_clear_w + gap,
+                    "top": 0,
+                    "width": btn_start_w,
+                    "height": btn_h,
                     "cursor": "pointer",
-                    "info": "clear_path"
-                }
-            ]
-        },
-        {
-            "type": "group",
-            "right": 20 + btn2_w + gap,
-            "top": 14,
-            "width": btn1_w,
-            "height": btn_h,
-            "cursor": "pointer",
-            "info": "toggle_origin",
-            "z": 100,
-            "children": [
-                {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {"width": btn1_w, "height": btn_h, "r": 6},
-                    "style": {
-                        "fill": start_bg,
-                        "stroke": start_border,
-                        "lineWidth": 1.5,
-                        "shadowBlur": 4,
-                        "shadowColor": "rgba(0,0,0,0.12)",
-                        "shadowOffsetY": 2
-                    },
-                    "cursor": "pointer",
-                    "info": "toggle_origin"
+                    "info": "toggle_origin",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {"width": btn_start_w, "height": btn_h, "r": 5},
+                            "style": {
+                                "fill": start_bg,
+                                "stroke": start_border,
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_origin"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": start_label,
+                                "fill": start_text_color,
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_origin"
+                        }
+                    ]
                 },
                 {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": start_label,
-                        "fill": start_text_color,
-                        "font": "600 11px sans-serif"
-                    },
+                    "type": "group",
+                    "left": btn_clear_w + gap + btn_start_w + gap,
+                    "top": 0,
+                    "width": btn_dest_w,
+                    "height": btn_h,
                     "cursor": "pointer",
-                    "info": "toggle_origin"
-                }
-            ]
-        },
-        {
-            "type": "group",
-            "right": 20,
-            "top": 14,
-            "width": btn2_w,
-            "height": btn_h,
-            "cursor": "pointer",
-            "info": "toggle_dest",
-            "z": 100,
-            "children": [
-                {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {"width": btn2_w, "height": btn_h, "r": 6},
-                    "style": {
-                        "fill": dest_bg,
-                        "stroke": dest_border,
-                        "lineWidth": 1.5,
-                        "shadowBlur": 4,
-                        "shadowColor": "rgba(0,0,0,0.12)",
-                        "shadowOffsetY": 2
-                    },
-                    "cursor": "pointer",
-                    "info": "toggle_dest"
-                },
-                {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": dest_label,
-                        "fill": dest_text_color,
-                        "font": "600 11px sans-serif"
-                    },
-                    "cursor": "pointer",
-                    "info": "toggle_dest"
+                    "info": "toggle_dest",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {"width": btn_dest_w, "height": btn_h, "r": 5},
+                            "style": {
+                                "fill": dest_bg,
+                                "stroke": dest_border,
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_dest"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": dest_label,
+                                "fill": dest_text_color,
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_dest"
+                        }
+                    ]
                 }
             ]
         }
@@ -496,7 +505,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
             "borderWidth": 1.5,
             "left": 35,
             "right": 35,
-            "top": 55,
+            "top": 50,
             "bottom": 48
         },
         "legend": {
