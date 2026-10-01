@@ -279,7 +279,9 @@ def get_echarts_options(graph, positions, rooms, route, origin, destination):
     })
 
     marker_data = []
-    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 14)):
+    for room_id, color, size in ((origin, "#ffffff", 10), (destination, "#2ca25f", 15)):
+        if room_id in (None, "-"):
+            continue
         x, y = positions[int(room_id)]
         marker_data.append({
             "value": [x, y],
@@ -398,13 +400,13 @@ def main():
     st.session_state.positions = positions
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
-    room_options = list(rooms.Room_ID)
+    labels["-"] = "-"
+    room_options = ["-"] + list(rooms.Room_ID)
 
     if "origin" not in st.session_state:
-        st.session_state.origin = int(room_options[0])
+        st.session_state.origin = "-"
     if "destination" not in st.session_state:
-        fallback_dest = room_options[1] if len(room_options) > 1 else room_options[0]
-        st.session_state.destination = int(fallback_dest)
+        st.session_state.destination = "-"
 
     st.title("AB Ground Floor Navigation")
     st.caption("Choose rooms or click a corridor to place the destination location.")
@@ -412,14 +414,29 @@ def main():
     controls, map_column = st.columns([1, 2.7], gap="large")
     
     with controls:
-        origin = st.selectbox("Starting room", room_options, index=room_options.index(st.session_state.origin), format_func=labels.get)
-        destination = st.selectbox("Destination room", room_options, index=room_options.index(st.session_state.destination), format_func=labels.get)
-        
-        if origin == destination:
+        default_origin = st.session_state.get("origin", "-")
+        default_dest = st.session_state.get("destination", "-")
+
+        origin = st.selectbox(
+            "Starting room (From)",
+            room_options,
+            index=room_options.index(default_origin) if default_origin in room_options else 0,
+            format_func=labels.get
+        )
+        destination = st.selectbox(
+            "Destination room (To)",
+            room_options,
+            index=room_options.index(default_dest) if default_dest in room_options else 0,
+            format_func=labels.get
+        )
+
+        if origin == "-" or destination == "-":
+            route_data = None
+        elif origin == destination:
             st.info("Choose two different rooms to show a route.")
             route_data = None
         else:
-            route_data = routes.get((origin, destination))
+            route_data = routes.get((int(origin), int(destination)))
             if route_data:
                 st.metric("Route distance", f"{route_data[0]:.2f} m")
             else:
