@@ -357,22 +357,6 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         "tooltip": {"show": False}
     })
 
-    series.append({
-        "type": "lines",
-        "coordinateSystem": "cartesian2d",
-        "data": base_lines,
-        "lineStyle": {
-            "color": "#d2dbde",
-            "width": 9,
-            "cap": "round",
-            "join": "round"
-        },
-        "clip": True,
-        "cursor": cursor_style,
-        "silent": is_silent,
-        "tooltip": {"show": False}
-    })
-
     if route_coords:
         series.append({
             "name": "Shortest route",
