@@ -197,7 +197,7 @@ def calculate_turn_direction(v1, v2):
 
 
 
-def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None, proximity_radius=5.0):
+def get_intersection_rooms(pt, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None, proximity_radius=5.0):
     if node_tree is None or node_ids is None:
         return []
     
@@ -235,7 +235,7 @@ def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label
     return connected
 
 
-def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None):
+def generate_directions(path_coords, positions, labels, start_label="Start", dest_label="Destination", graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None):
     if not path_coords or len(path_coords) < 2:
         return []
 
@@ -249,7 +249,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
     first_v = (next_pt[0] - start_pt[0], next_pt[1] - start_pt[1])
     first_dist = math.hypot(first_v[0], first_v[1])
     
-    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
+    start_conn = get_intersection_rooms(start_pt, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
     if start_conn and start_conn[0] != start_label:
         start_desc = f"Near {start_conn[0]}"
     else:
@@ -278,7 +278,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
         else:
             directions.append(curr_instruction)
 
-            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
+            conn_rooms = get_intersection_rooms(p_curr, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
             if conn_rooms:
                 if len(conn_rooms) == 1:
                     room_phrase = f"near {conn_rooms[0]}"
@@ -422,7 +422,7 @@ def room_label_layout(room_id, graph, positions):
 	return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
-def get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data):
+def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
     base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
 
     min_x = bounds["min_x"]
@@ -813,7 +813,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
     }
 
 
-def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
+def handle_map_click(clicked_data, positions, room_ids, room_tree):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
 
@@ -1026,7 +1026,6 @@ def main():
 
             directions = generate_directions(
                 path_coords=route_coords,
-                rooms=active_rooms,
                 positions=active_positions,
                 labels=labels,
                 start_label=start_lbl,
@@ -1041,7 +1040,7 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
-        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data)
+        options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
         _, _, _, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
@@ -1142,7 +1141,7 @@ def main():
             key="floorplan"
         )
 
-        if handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
+        if handle_map_click(clicked_data, positions, room_ids, room_tree):
             st.rerun()
 
 
