@@ -27,8 +27,12 @@ def load_map_data():
     rooms = pd.read_csv(ROOMS_PATH)
     rooms["Room_ID"] = rooms["Room_ID"].astype(int)
     rooms["label"] = rooms.apply(lambda row: f"{row.Room_Name}", axis=1)
+
     room_ids = rooms["Room_ID"].tolist()
     room_tree = cKDTree([positions[room_id] for room_id in room_ids])
+
+    node_ids = list(positions.keys())
+    node_tree = cKDTree([positions[node_id] for node_id in node_ids])
     
     cache = pd.read_csv(CACHE_PATH)
     cache["Path"] = cache["Path"].map(ast.literal_eval)
@@ -38,7 +42,117 @@ def load_map_data():
         path = [int(node) for node in row.Path]
         routes[(int(row.Source), int(row.Target))] = (float(row.Distance), path)
         routes[(int(row.Target), int(row.Source))] = (float(row.Distance), path[::-1])
-    return graph, positions, rooms, routes, room_ids, room_tree
+
+    return graph, positions, rooms, routes, room_ids, room_tree, node_ids, node_tree
+
+
+@st.cache_data
+def build_static_map_data(_graph, positions, rooms):
+    base_lines = []
+
+    for left, right in _graph.edges:
+        x1, y1 = positions[left]
+        x2, y2 = positions[right]
+
+        base_lines.append({
+            "coords": [[x1, y1], [x2, y2]],
+            "edge": [int(left), int(right)]
+        })
+
+    room_records = rooms[~rooms.Room_ID.isin([1, 15])]
+    room_boxes = []
+    room_labels = []
+
+    for row in room_records.itertuples(index=False):
+        room_id = int(row.Room_ID)
+        x, y = positions[room_id]
+
+        layout = room_label_layout(room_id, _graph, positions)
+        text = wrap_label(str(row.Room_Name))
+
+        room_boxes.append({
+            "value": [x, y],
+            "roomId": room_id,
+            "name": row.Room_Name
+        })
+
+        room_labels.append({
+            "value": [x, y],
+            "roomId": room_id,
+            "name": row.Room_Name,
+            "label": {
+                "show": True,
+                "formatter": text,
+                "position": layout["position"],
+                "distance": layout["distance"],
+                "offset": layout["offset"],
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 8,
+                "lineHeight": 10
+            }
+        })
+
+    gate_boxes = [
+        {
+            "value": [positions[1][0], positions[1][1]],
+            "roomId": 1,
+            "name": "Front Gate",
+            "itemStyle": {"color": "#e63946"}
+        },
+        {
+            "value": [positions[15][0], positions[15][1]],
+            "roomId": 15,
+            "name": "Back Gate",
+            "itemStyle": {"color": "#111111"}
+        }
+    ]
+
+    gate_labels = [
+        {
+            "value": [positions[1][0], positions[1][1]],
+            "roomId": 1,
+            "name": "Front Gate",
+            "label": {
+                "show": True,
+                "formatter": "Front Gate",
+                "position": "bottom",
+                "distance": 8,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 9
+            }
+        },
+        {
+            "value": [positions[15][0], positions[15][1]],
+            "roomId": 15,
+            "name": "Back Gate",
+            "label": {
+                "show": True,
+                "formatter": "Back Gate",
+                "position": "top",
+                "distance": 8,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": 9
+            }
+        }
+    ]
+
+    all_x, all_y = zip(*positions.values())
+    x_span = max(all_x) - min(all_x)
+    y_span = max(all_y) - min(all_y)
+    x_pad = x_span * 0.08
+    y_pad = y_span * 0.08
+
+    bounds = {
+        "min_x": min(all_x) - x_pad,
+        "max_x": max(all_x) + x_pad,
+        "min_y": min(all_y) - y_pad,
+        "max_y": max(all_y) + y_pad
+    }
+
+    return base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds
 
 
 def is_mobile_device():
@@ -82,14 +196,15 @@ def calculate_turn_direction(v1, v2):
         return "uturn", "Make a U-turn", "↩"
 
 
-def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, proximity_radius=5.0):
+
+def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None, proximity_radius=5.0):
+    if node_tree is None or node_ids is None:
+        return []
+    
     connected = []
     
-    curr_node = None
-    for n, pos in positions.items():
-        if math.hypot(pos[0] - pt[0], pos[1] - pt[1]) < 0.15:
-            curr_node = n
-            break
+    distance, index = node_tree.query(pt)
+    curr_node = node_ids[index] if distance < 0.15 else None
 
     if graph and curr_node is not None and curr_node in graph:
         for nbr in graph.neighbors(curr_node):
@@ -120,7 +235,7 @@ def get_intersection_rooms(pt, rooms, positions, labels, start_label, dest_label
     return connected
 
 
-def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None, room_ids=None, room_tree=None):
+def generate_directions(path_coords, rooms, positions, labels, start_label="Start", dest_label="Destination", graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None):
     if not path_coords or len(path_coords) < 2:
         return []
 
@@ -134,7 +249,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
     first_v = (next_pt[0] - start_pt[0], next_pt[1] - start_pt[1])
     first_dist = math.hypot(first_v[0], first_v[1])
     
-    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree)
+    start_conn = get_intersection_rooms(start_pt, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
     if start_conn and start_conn[0] != start_label:
         start_desc = f"Near {start_conn[0]}"
     else:
@@ -163,7 +278,7 @@ def generate_directions(path_coords, rooms, positions, labels, start_label="Star
         else:
             directions.append(curr_instruction)
 
-            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree)
+            conn_rooms = get_intersection_rooms(p_curr, rooms, positions, labels, start_label, dest_label, graph=graph, room_ids=room_ids, room_tree=room_tree, node_ids=node_ids, node_tree=node_tree)
             if conn_rooms:
                 if len(conn_rooms) == 1:
                     room_phrase = f"near {conn_rooms[0]}"
@@ -260,11 +375,10 @@ def euclidean_dist(p1, p2):
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
-def nearest_room(x, y, rooms, positions):
-    return min(
-        rooms.Room_ID,
-        key=lambda room_id: (positions[int(room_id)][0] - x) ** 2 + (positions[int(room_id)][1] - y) ** 2
-    )
+def nearest_room(x, y, room_ids, room_tree):
+    _, index = room_tree.query((x, y))
+
+    return room_ids[index]
 
 
 def wrap_label(label, width=19):
@@ -309,53 +423,93 @@ def room_label_layout(room_id, graph, positions):
 
 
 def get_echarts_options(graph, positions, rooms, route_coords, origin, destination):
-    all_x, all_y = zip(*positions.values())
-    x_span = max(all_x) - min(all_x)
-    y_span = max(all_y) - min(all_y)
-    x_pad = x_span * 0.08
-    y_pad = y_span * 0.08
+    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = build_static_map_data(graph, positions, rooms)
 
-    min_x, max_x = min(all_x) - x_pad, max(all_x) + x_pad
-    min_y, max_y = min(all_y) - y_pad, max(all_y) + y_pad
+    min_x = bounds["min_x"]
+    max_x = bounds["max_x"]
+    min_y = bounds["min_y"]
+    max_y = bounds["max_y"]
 
     mz = st.session_state.get("map_zoom")
+
     zoom_x_start = mz[0]["start"] if mz and len(mz) > 0 and "start" in mz[0] else 0
     zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
     zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
     zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
 
-    is_active = bool(st.session_state.get("click_target"))
+    click_target = st.session_state.get("click_target")
+    is_active = bool(click_target)
     cursor_style = "pointer" if is_active else "grab"
     is_silent = not is_active
 
-    series = []
-
-    base_lines = []
-    for left, right in graph.edges:
-        x1, y1 = positions[left]
-        x2, y2 = positions[right]
-        base_lines.append({
-            "coords": [[x1, y1], [x2, y2]],
-            "edge": [int(left), int(right)]
-        })
-
-    series.append({
-        "name": "Walkable path",
-        "type": "lines",
-        "coordinateSystem": "cartesian2d",
-        "data": base_lines,
-        "lineStyle": {
-            "color": "#d2dbde",
-            "width": 12,
-            "opacity": 1,
-            "cap": "round",
-            "join": "round"
+    series = [
+        {
+            "name": "Walkable path",
+            "type": "lines",
+            "coordinateSystem": "cartesian2d",
+            "data": base_lines,
+            "lineStyle": {
+                "color": "#d2dbde",
+                "width": 10,
+                "opacity": 1,
+                "cap": "round",
+                "join": "round"
+            },
+            "clip": True,
+            "cursor": cursor_style,
+            "silent": is_silent,
+            "tooltip": {"show": False}
         },
-        "clip": True,
-        "cursor": cursor_style,
-        "silent": is_silent,
-        "tooltip": {"show": False}
-    })
+        {
+            "name": "Rooms",
+            "type": "scatter",
+            "symbol": "rect",
+            "symbolSize": 10,
+            "itemStyle": {
+                "color": "#2f8fbd",
+                "borderColor": "#17465d",
+                "borderWidth": 1
+            },
+            "data": room_boxes,
+            "cursor": cursor_style,
+            "z": 20
+        },
+        {
+            "name": "Room names",
+            "type": "scatter",
+            "symbol": "rect",
+            "symbolSize": 0,
+            "itemStyle": {"color": "#2f8fbd"},
+            "data": room_labels,
+            "cursor": cursor_style,
+            "silent": is_silent,
+            "z": 21
+        },
+        {
+            "name": "Gates",
+            "type": "scatter",
+            "symbol": "circle",
+            "symbolSize": 15,
+            "itemStyle": {
+                "borderColor": "#202a2e",
+                "borderWidth": 2
+            },
+            "data": gate_boxes,
+            "cursor": cursor_style,
+            "z": 20
+        },
+        {
+            "name": "Gate names",
+            "type": "scatter",
+            "symbol": "circle",
+            "symbolSize": 0,
+            "itemStyle": {"color": "#202a2e"},
+            "data": gate_labels,
+            "cursor": cursor_style,
+            "silent": is_silent,
+            "z": 21
+        }
+    ]
 
     if route_coords:
         series.append({
@@ -377,141 +531,29 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
             "tooltip": {"show": False}
         })
 
-    room_records = rooms[~rooms.Room_ID.isin([1, 15])]
-    room_boxes = []
-    room_labels = []
-    for row in room_records.itertuples(index=False):
-        x, y = positions[int(row.Room_ID)]
-        layout = room_label_layout(int(row.Room_ID), graph, positions)
-        text = wrap_label(str(row.Room_Name))
-        room_boxes.append({
-            "value": [x, y],
-            "roomId": int(row.Room_ID),
-            "name": row.Room_Name
-        })
-        room_labels.append({
-            "value": [x, y],
-            "roomId": int(row.Room_ID),
-            "name": row.Room_Name,
-            "label": {
-                "show": True,
-                "formatter": text,
-                "position": layout["position"],
-                "distance": layout["distance"],
-                "offset": layout["offset"],
-                "color": "#1f2937",
-                "fontWeight": "bold",
-                "fontSize": 8,
-                "lineHeight": 10
-            }
-        })
-
-    series.append({
-        "name": "Rooms",
-        "type": "scatter",
-        "symbol": "rect",
-        "symbolSize": 10,
-        "itemStyle": {"color": "#2f8fbd", "borderColor": "#17465d", "borderWidth": 1},
-        "data": room_boxes,
-        "cursor": cursor_style,
-        "z": 20
-    })
-
-    series.append({
-        "name": "Room names",
-        "type": "scatter",
-        "symbol": "rect",
-        "symbolSize": 0,
-        "itemStyle": {"color": "#2f8fbd"},
-        "data": room_labels,
-        "cursor": cursor_style,
-        "silent": is_silent,
-        "z": 21
-    })
-
-    gate_boxes = [
-        {
-            "value": [positions[1][0], positions[1][1]],
-            "roomId": 1,
-            "name": "Front Gate",
-            "itemStyle": {"color": "#e63946"}
-        },
-        {
-            "value": [positions[15][0], positions[15][1]],
-            "roomId": 15,
-            "name": "Back Gate",
-            "itemStyle": {"color": "#111111"}
-        }
-    ]
-
-    gate_labels = [
-        {
-            "value": [positions[1][0], positions[1][1]],
-            "roomId": 1,
-            "name": "Front Gate",
-            "label": {
-                "show": True,
-                "formatter": "Front Gate",
-                "position": "bottom",
-                "distance": 8,
-                "color": "#1f2937",
-                "fontWeight": "bold",
-                "fontSize": 9
-            }
-        },
-        {
-            "value": [positions[15][0], positions[15][1]],
-            "roomId": 15,
-            "name": "Back Gate",
-            "label": {
-                "show": True,
-                "formatter": "Back Gate",
-                "position": "top",
-                "distance": 8,
-                "color": "#1f2937",
-                "fontWeight": "bold",
-                "fontSize": 9
-            }
-        }
-    ]
-
-    series.append({
-        "name": "Gates",
-        "type": "scatter",
-        "symbol": "circle",
-        "symbolSize": 15,
-        "itemStyle": {"borderColor": "#202a2e", "borderWidth": 2},
-        "data": gate_boxes,
-        "cursor": cursor_style,
-        "z": 20
-    })
-
-    series.append({
-        "name": "Gate names",
-        "type": "scatter",
-        "symbol": "circle",
-        "symbolSize": 0,
-        "itemStyle": {"color": "#202a2e"},
-        "data": gate_labels,
-        "cursor": cursor_style,
-        "silent": is_silent,
-        "z": 21
-    })
-
     marker_data = []
+
     if origin == "Custom" and st.session_state.get("custom_origin"):
         cx, cy = st.session_state.custom_origin["point"]
         marker_data.append({
             "value": [cx, cy],
             "symbolSize": 10,
-            "itemStyle": {"color": "#ffffff", "borderColor": "#202a2e", "borderWidth": 2}
+            "itemStyle": {
+                "color": "#ffffff",
+                "borderColor": "#202a2e",
+                "borderWidth": 2
+            }
         })
     elif origin not in (None, "-"):
         ox, oy = positions[int(origin)]
         marker_data.append({
             "value": [ox, oy],
             "symbolSize": 10,
-            "itemStyle": {"color": "#ffffff", "borderColor": "#202a2e", "borderWidth": 2}
+            "itemStyle": {
+                "color": "#ffffff",
+                "borderColor": "#202a2e",
+                "borderWidth": 2
+            }
         })
 
     if destination not in (None, "-"):
@@ -519,7 +561,11 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         marker_data.append({
             "value": [dx, dy],
             "symbolSize": 15,
-            "itemStyle": {"color": "#2ca25f", "borderColor": "#202a2e", "borderWidth": 2}
+            "itemStyle": {
+                "color": "#2ca25f",
+                "borderColor": "#202a2e",
+                "borderWidth": 2
+            }
         })
 
     series.append({
@@ -530,8 +576,6 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         "silent": True,
         "tooltip": {"show": False}
     })
-
-    click_target = st.session_state.get("click_target")
 
     start_active = click_target == "origin"
     start_bg = "#2ca25f" if start_active else "#ffffff"
@@ -575,7 +619,11 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
                             "type": "rect",
                             "left": "center",
                             "top": "middle",
-                            "shape": {"width": btn_clear_w, "height": btn_h, "r": 5},
+                            "shape": {
+                                "width": btn_clear_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
                             "style": {
                                 "fill": "#ffffff",
                                 "stroke": "#e63946",
@@ -614,7 +662,11 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
                             "type": "rect",
                             "left": "center",
                             "top": "middle",
-                            "shape": {"width": btn_start_w, "height": btn_h, "r": 5},
+                            "shape": {
+                                "width": btn_start_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
                             "style": {
                                 "fill": start_bg,
                                 "stroke": start_border,
@@ -653,7 +705,11 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
                             "type": "rect",
                             "left": "center",
                             "top": "middle",
-                            "shape": {"width": btn_dest_w, "height": btn_h, "r": 5},
+                            "shape": {
+                                "width": btn_dest_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
                             "style": {
                                 "fill": dest_bg,
                                 "stroke": dest_border,
@@ -683,7 +739,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         }
     ]
 
-    options = {
+    return {
         "backgroundColor": "#fbfaf6",
         "graphic": graphic_buttons,
         "grid": {
@@ -696,7 +752,12 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
             "bottom": 48
         },
         "legend": {
-            "data": ["Rooms", "Room names", "Gates", "Gate names"],
+            "data": [
+                "Rooms",
+                "Room names",
+                "Gates",
+                "Gate names"
+            ],
             "bottom": 6,
             "left": "center",
             "orient": "horizontal",
@@ -751,10 +812,8 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
         "animation": False
     }
 
-    return options
 
-
-def handle_map_click(clicked_data, rooms, positions):
+def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
 
@@ -813,7 +872,7 @@ def handle_map_click(clicked_data, rooms, positions):
         if event.get("roomId"):
             selected_room = int(event["roomId"])
         elif click_pt:
-            selected_room = int(nearest_room(click_pt[0], click_pt[1], rooms, positions))
+            selected_room = int(nearest_room(click_pt[0], click_pt[1], room_ids, room_tree))
 
         if selected_room is not None:
             st.session_state.destination = selected_room
@@ -826,7 +885,7 @@ def handle_map_click(clicked_data, rooms, positions):
 def main():
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
     
-    graph, positions, rooms, routes, room_ids, room_tree = load_map_data()
+    graph, positions, rooms, routes, room_ids, room_tree, node_ids, node_tree = load_map_data()
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
@@ -954,6 +1013,8 @@ def main():
                 graph=graph,
                 room_ids=room_ids,
                 room_tree=room_tree,
+                node_ids=node_ids,
+                node_tree=node_tree
             )
 
             render_directions_ui(directions)
@@ -1060,7 +1121,7 @@ def main():
             key="floorplan"
         )
 
-        if handle_map_click(clicked_data, rooms, positions):
+        if handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
             st.rerun()
 
 
