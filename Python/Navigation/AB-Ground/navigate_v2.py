@@ -454,12 +454,12 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     is_mobile = is_mobile_device()
     show_all = st.session_state.get("show_all", False)
 
-    path_width = 6 if is_mobile else 10
-    route_width = 3.5 if is_mobile else 5
-    room_size = 7 if is_mobile else 10
-    gate_size = 11 if is_mobile else 15
-    marker_orig_size = 8 if is_mobile else 10
-    marker_dest_size = 11 if is_mobile else 15
+    path_width = 5 if is_mobile else 9
+    route_width = 3 if is_mobile else 4.5
+    room_size = 4.5 if is_mobile else 8
+    gate_size = 9 if is_mobile else 13
+    marker_orig_size = 7 if is_mobile else 10
+    marker_dest_size = 9 if is_mobile else 13
     label_font_size = 7 if is_mobile else 8
 
     min_x = bounds["min_x"]
@@ -484,12 +484,20 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     if str(destination).isdigit():
         selected_ids.add(int(destination))
 
+    marker_pts = []
+    if origin == "Custom" and st.session_state.get("custom_origin"):
+        marker_pts.append(st.session_state.custom_origin["point"])
+    elif str(origin).isdigit() and int(origin) in positions:
+        marker_pts.append(positions[int(origin)])
+    if str(destination).isdigit() and int(destination) in positions:
+        marker_pts.append(positions[int(destination)])
+
     if show_all:
         visible_boxes = room_boxes
         visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
     else:
         grid_w = (350 if is_mobile else 800) - 70
-        grid_h = (300 if is_mobile else 600) - 95
+        grid_h = (300 if is_mobile else 600) - 85
         span_x = max_x - min_x
         span_y = max_y - min_y
         cur_min_x = min_x + span_x * (zoom_x_start / 100.0)
@@ -505,6 +513,11 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
 
         kept_ids = set(selected_ids)
         kept_pts = []
+
+        for mx, my in marker_pts:
+            px = (mx - cur_min_x) * scale_x
+            py = (my - cur_min_y) * scale_y
+            kept_pts.append((px, py))
 
         for b in room_boxes:
             rid = b["roomId"]
@@ -581,7 +594,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "itemStyle": {"color": "#2f8fbd"},
             "labelLayout": {
-                "hideOverlap": not show_all
+                "hideOverlap": True
             },
             "data": visible_labels,
             "cursor": cursor_style,
@@ -610,7 +623,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "itemStyle": {"color": "#202a2e"},
             "labelLayout": {
-                "hideOverlap": not show_all
+                "hideOverlap": True
             },
             "data": visible_gate_labels,
             "cursor": cursor_style,
@@ -656,7 +669,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": "Custom Start",
                 "position": "top",
-                "distance": 6,
+                "distance": 5,
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -684,7 +697,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": orig_name,
                 "position": "top",
-                "distance": 6,
+                "distance": 5,
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -713,7 +726,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": dest_name,
                 "position": "top",
-                "distance": 6,
+                "distance": 5,
                 "color": "#0d3c26",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -729,6 +742,9 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "type": "scatter",
         "data": marker_data,
         "clip": True,
+        "labelLayout": {
+            "hideOverlap": True
+        },
         "z": 35,
         "cursor": cursor_style,
         "silent": True,
@@ -747,11 +763,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     dest_text_color = "#ffffff" if dest_active else "#263238"
     dest_label = "Destination: Active" if dest_active else "Set Destination"
 
-    btn_h = 28
-    btn_clear_w = 85
-    btn_start_w = 95
-    btn_dest_w = 125
-    gap = 8
+    btn_h = 22 if is_mobile else 25
+    btn_clear_w = 68 if is_mobile else 76
+    btn_start_w = 76 if is_mobile else 84
+    btn_dest_w = 98 if is_mobile else 112
+    gap = 5 if is_mobile else 6
+    btn_font = f"600 {9 if is_mobile else 10}px sans-serif"
+    btn_top = 8 if is_mobile else 10
 
     total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
 
@@ -759,14 +777,14 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     show_all_border = "#2ca25f" if show_all else "#b0bec5"
     show_all_text_color = "#ffffff" if show_all else "#263238"
     show_all_label = "Show All: ON" if show_all else "Show All: OFF"
-    show_all_w = 64 if is_mobile else 70
+    show_all_w = 62 if is_mobile else 68
     show_all_h = 18 if is_mobile else 20
 
     graphic_buttons = [
         {
             "type": "group",
             "left": "center",
-            "top": 12,
+            "top": btn_top,
             "width": total_w,
             "height": btn_h,
             "z": 100,
@@ -787,15 +805,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "shape": {
                                 "width": btn_clear_w,
                                 "height": btn_h,
-                                "r": 5
+                                "r": 4
                             },
                             "style": {
                                 "fill": "#ffffff",
                                 "stroke": "#e63946",
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
+                                "lineWidth": 1.2,
+                                "shadowBlur": 3,
+                                "shadowColor": "rgba(0,0,0,0.1)",
+                                "shadowOffsetY": 1
                             },
                             "cursor": "pointer",
                             "info": "clear_path"
@@ -807,7 +825,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "style": {
                                 "text": "Clear Path",
                                 "fill": "#e63946",
-                                "font": "600 11px sans-serif"
+                                "font": btn_font
                             },
                             "cursor": "pointer",
                             "info": "clear_path"
@@ -830,15 +848,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "shape": {
                                 "width": btn_start_w,
                                 "height": btn_h,
-                                "r": 5
+                                "r": 4
                             },
                             "style": {
                                 "fill": start_bg,
                                 "stroke": start_border,
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
+                                "lineWidth": 1.2,
+                                "shadowBlur": 3,
+                                "shadowColor": "rgba(0,0,0,0.1)",
+                                "shadowOffsetY": 1
                             },
                             "cursor": "pointer",
                             "info": "toggle_origin"
@@ -850,7 +868,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "style": {
                                 "text": start_label,
                                 "fill": start_text_color,
-                                "font": "600 11px sans-serif"
+                                "font": btn_font
                             },
                             "cursor": "pointer",
                             "info": "toggle_origin"
@@ -873,15 +891,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "shape": {
                                 "width": btn_dest_w,
                                 "height": btn_h,
-                                "r": 5
+                                "r": 4
                             },
                             "style": {
                                 "fill": dest_bg,
                                 "stroke": dest_border,
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
+                                "lineWidth": 1.2,
+                                "shadowBlur": 3,
+                                "shadowColor": "rgba(0,0,0,0.1)",
+                                "shadowOffsetY": 1
                             },
                             "cursor": "pointer",
                             "info": "toggle_dest"
@@ -893,7 +911,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "style": {
                                 "text": dest_label,
                                 "fill": dest_text_color,
-                                "font": "600 11px sans-serif"
+                                "font": btn_font
                             },
                             "cursor": "pointer",
                             "info": "toggle_dest"
@@ -949,8 +967,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         }
     ]
 
-    grid_top = 50
-    grid_bottom = 54 if is_mobile else 42
+    grid_top = 38 if is_mobile else 42
+    grid_bottom = 52 if is_mobile else 40
 
     return {
         "backgroundColor": "#fbfaf6",
@@ -1174,8 +1192,30 @@ def main():
         [data-stale="true"] {
             opacity: 1 !important;
         }
+
+        h1 {
+            font-size: 2.2rem !important;
+            margin-bottom: 0.2rem !important;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem !important;
+                margin-bottom: 0.1rem !important;
+            }
+            [data-testid="stCaptionContainer"] {
+                font-size: 0.78rem !important;
+                margin-bottom: 0.4rem !important;
+            }
+            [data-testid="stAppViewBlockContainer"] {
+                padding-top: 1.5rem !important;
+                padding-bottom: 1rem !important;
+            }
+        }
         </style>
-        """, unsafe_allow_html=True)
+        """, 
+        unsafe_allow_html=True
+    )
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
@@ -1331,13 +1371,22 @@ def main():
         if str(destination).isdigit():
             selected_ids.append(int(destination))
 
+        marker_pts = []
+        if origin == "Custom" and st.session_state.get("custom_origin"):
+            marker_pts.append(st.session_state.custom_origin["point"])
+        elif str(origin).isdigit() and int(origin) in positions:
+            marker_pts.append(positions[int(origin)])
+        if str(destination).isdigit() and int(destination) in positions:
+            marker_pts.append(positions[int(destination)])
+
         boxes_json = json.dumps(all_boxes)
         labels_json = json.dumps(all_labels)
         selected_ids_json = json.dumps(selected_ids)
+        marker_pts_json = json.dumps(marker_pts)
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
-        grid_top = 50
-        grid_bottom = 54 if is_mobile_device() else 42
+        grid_top = 38 if is_mobile_device() else 42
+        grid_bottom = 52 if is_mobile_device() else 40
 
         events = {
             "datazoom": f"""function(p) {{
@@ -1366,7 +1415,7 @@ def main():
 
                     var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
                     var w = (dom ? dom.clientWidth : 800) - 70;
-                    var h = (dom ? dom.clientHeight : 600) - 95;
+                    var h = (dom ? dom.clientHeight : 600) - 85;
                     var scaleX = w / Math.max(curMaxX - curMinX, 0.0001);
                     var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
 
@@ -1375,11 +1424,18 @@ def main():
                     var minDistSq = minDist * minDist;
 
                     var selIds = {selected_ids_json};
+                    var mPts = {marker_pts_json};
                     var kept = {{}};
                     var keptPts = [];
 
                     for (var s = 0; s < selIds.length; s++) {{
                         kept[selIds[s]] = true;
+                    }}
+
+                    for (var m = 0; m < mPts.length; m++) {{
+                        var px = (mPts[m][0] - curMinX) * scaleX;
+                        var py = (mPts[m][1] - curMinY) * scaleY;
+                        keptPts.push([px, py]);
                     }}
 
                     var mBoxes = window._masterBoxes || [];
