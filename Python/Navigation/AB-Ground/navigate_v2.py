@@ -903,7 +903,6 @@ def on_destination_change():
 
 def main():
     graph, positions, rooms, routes, room_ids, room_tree, node_ids, node_tree = load_map_data()
-    static_map_data = build_static_map_data(graph, positions, rooms)
 
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
     st.markdown("""
@@ -1054,6 +1053,7 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
+        static_map_data = build_static_map_data(graph, positions, rooms)
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
         _, _, _, _, _, bounds = static_map_data
