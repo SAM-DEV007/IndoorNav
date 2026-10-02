@@ -1022,8 +1022,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             }
         ],
         "series": series,
-        "animation": True,
-        "animationDuration": 0,
+        "animation": False
     }
 
 
