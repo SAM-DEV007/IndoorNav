@@ -81,7 +81,8 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         })
 
     room_records = rooms[~rooms.Room_ID.isin([1, 15])]
-    rooms_data = []
+    room_boxes = []
+    room_labels = []
 
     for row in room_records.itertuples(index=False):
         room_id = int(row.Room_ID)
@@ -93,8 +94,8 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         text_w = max(len(l) for l in lines) * 4.9 + 2.0
         text_h = len(lines) * 10.5
 
-        rooms_data.append({
-            "id": f"room_{room_id}",
+        room_boxes.append({
+            "id": f"room_box_{room_id}",
             "value": [x, y],
             "roomId": room_id,
             "name": row.Room_Name,
@@ -102,8 +103,14 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
             "textH": text_h,
             "layoutPos": layout["position"],
             "layoutDist": layout["distance"],
-            "layoutOffset": layout["offset"],
-            "labelText": text,
+            "layoutOffset": layout["offset"]
+        })
+
+        room_labels.append({
+            "id": f"room_label_{room_id}",
+            "value": [x, y],
+            "roomId": room_id,
+            "name": row.Room_Name,
             "label": {
                 "show": True,
                 "formatter": text,
@@ -125,7 +132,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
             return 1
         return 2
 
-    rooms_data.sort(key=priority)
+    room_boxes.sort(key=priority)
 
     gate_boxes = [
         {
@@ -190,7 +197,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         "max_y": max(all_y) + y_pad
     }
 
-    return base_lines, rooms_data, gate_boxes, gate_labels, bounds
+    return base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds
 
 
 def is_mobile_device():
@@ -513,8 +520,62 @@ def boxes_overlap(b1, b2):
     return b1[0] < b2[1] and b1[1] > b2[0] and b1[2] < b2[3] and b1[3] > b2[2]
 
 
+def get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r):
+    px = (r["value"][0] - cur_min_x) * scale_x
+    py = (r["value"][1] - cur_min_y) * scale_y
+
+    bx1, bx2 = px - box_r, px + box_r
+    by1, by2 = py - box_r, py + box_r
+
+    tw = r["textW"]
+    th = r["textH"]
+    pos = r["layoutPos"]
+    dist = r["layoutDist"]
+    ox, oy = r["layoutOffset"]
+
+    if pos == "top":
+        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
+        ly1, ly2 = py + box_r + dist, py + box_r + dist + th
+    elif pos == "bottom":
+        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
+        ly1, ly2 = py - box_r - dist - th, py - box_r - dist
+    elif pos == "left":
+        lx1, lx2 = px - box_r - dist - tw, px - box_r - dist
+        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+    else:
+        lx1, lx2 = px + box_r + dist, px + box_r + dist + tw
+        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+
+    return (
+        min(bx1, lx1) - 1.0,
+        max(bx2, lx2) + 1.0,
+        min(by1, ly1) - 1.0,
+        max(by2, ly2) + 1.0
+    )
+
+
+def get_marker_bbox(pt, name, scale_x, scale_y, cur_min_x, cur_min_y, marker_r):
+    px = (pt[0] - cur_min_x) * scale_x
+    py = (pt[1] - cur_min_y) * scale_y
+    lines = name.split("\n")
+    tw = max(len(l) for l in lines) * 4.9 + 8.0
+    th = len(lines) * 11.0 + 4.0
+    lx1, lx2 = px - tw / 2.0, px + tw / 2.0
+    ly1, ly2 = py + marker_r + 5.0, py + marker_r + 5.0 + th
+    return (
+        min(px - marker_r, lx1) - 1.0,
+        max(px + marker_r, lx2) + 1.0,
+        min(py - marker_r, ly1) - 1.0,
+        max(py + marker_r, ly2) + 1.0
+    )
+
+
+def boxes_overlap(b1, b2):
+    return b1[0] < b2[1] and b1[1] > b2[0] and b1[2] < b2[3] and b1[3] > b2[2]
+
+
 def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
-    base_lines, rooms_data, gate_boxes, gate_labels, bounds = static_map_data
+    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
 
     is_mobile = is_mobile_device()
     show_all = st.session_state.get("show_all", False)
@@ -539,7 +600,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
     zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
 
-    name_lookup = {r["roomId"]: r["name"] for r in rooms_data}
+    name_lookup = {r["roomId"]: r["name"] for r in room_boxes}
     name_lookup[1] = "Front Gate"
     name_lookup[15] = "Back Gate"
 
@@ -550,7 +611,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         selected_ids.add(int(destination))
 
     if show_all:
-        visible_rooms = [r for r in rooms_data if r.get("roomId") not in selected_ids]
+        visible_boxes = room_boxes
+        visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
     else:
         grid_w = (350 if is_mobile else 800) - 70
         grid_h = (300 if is_mobile else 600) - 85
@@ -581,7 +643,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             kept_boxes.append(get_marker_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_min_y, marker_dest_size / 2.0))
 
         box_r = room_size / 2.0
-        for r in rooms_data:
+        for r in room_boxes:
             rid = r["roomId"]
             if rid in selected_ids:
                 continue
@@ -598,7 +660,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 kept_ids.add(rid)
                 kept_boxes.append(r_bbox)
 
-        visible_rooms = [r for r in rooms_data if r["roomId"] in kept_ids]
+        visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
+        visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
 
     visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
 
@@ -636,10 +699,25 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "borderWidth": 1
             },
             "clip": True,
-            "data": visible_rooms,
+            "data": visible_boxes,
             "cursor": cursor_style,
             "silent": is_silent,
             "z": 20
+        },
+        {
+            "name": "Room names",
+            "type": "scatter",
+            "symbol": "rect",
+            "symbolSize": 0,
+            "clip": True,
+            "itemStyle": {"color": "#2f8fbd"},
+            "labelLayout": {
+                "hideOverlap": not show_all
+            },
+            "data": visible_labels,
+            "cursor": cursor_style,
+            "silent": is_silent,
+            "z": 21
         },
         {
             "name": "Gates",
@@ -653,7 +731,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "data": gate_boxes,
             "cursor": cursor_style,
-            "z": 21
+            "z": 22
         },
         {
             "name": "Gate names",
@@ -662,10 +740,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "symbolSize": 0,
             "clip": True,
             "itemStyle": {"color": "#202a2e"},
+            "labelLayout": {
+                "hideOverlap": not show_all
+            },
             "data": visible_gate_labels,
             "cursor": cursor_style,
             "silent": is_silent,
-            "z": 22
+            "z": 23
         }
     ]
 
@@ -797,15 +878,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     dest_text_color = "#ffffff" if dest_active else "#263238"
     dest_label = "Destination: Active" if dest_active else "Set Destination"
 
-    btn_h = 22 if is_mobile else 25
-    btn_start_w = 76 if is_mobile else 84
-    btn_dest_w = 98 if is_mobile else 112
-    btn_clear_w = 68 if is_mobile else 76
+    btn_h = 17 if is_mobile else 22
+    btn_start_w = 55 if is_mobile else 70
+    btn_dest_w = 85 if is_mobile else 100
+    btn_clear_w = 60 if is_mobile else 70
     gap = 5 if is_mobile else 6
     btn_font = f"600 {9 if is_mobile else 10}px sans-serif"
     btn_top = 8 if is_mobile else 10
 
-    total_w = btn_start_w + gap + btn_dest_w + gap + btn_clear_w
+    left_group_w = btn_start_w + gap + btn_dest_w
 
     show_all_bg = "#2ca25f" if show_all else "#ffffff"
     show_all_border = "#2ca25f" if show_all else "#b0bec5"
@@ -817,9 +898,9 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     graphic_buttons = [
         {
             "type": "group",
-            "left": "center",
+            "left": 12 if is_mobile else 35,
             "top": btn_top,
-            "width": total_w,
+            "width": left_group_w,
             "height": btn_h,
             "z": 100,
             "children": [
@@ -908,49 +989,50 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "info": "toggle_dest"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "type": "group",
+            "right": 12 if is_mobile else 35,
+            "top": btn_top,
+            "width": btn_clear_w,
+            "height": btn_h,
+            "z": 100,
+            "cursor": "pointer",
+            "info": "clear_path",
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {
+                        "width": btn_clear_w,
+                        "height": btn_h,
+                        "r": 4
+                    },
+                    "style": {
+                        "fill": "#ffffff",
+                        "stroke": "#e63946",
+                        "lineWidth": 1.2,
+                        "shadowBlur": 3,
+                        "shadowColor": "rgba(0,0,0,0.1)",
+                        "shadowOffsetY": 1
+                    },
+                    "cursor": "pointer",
+                    "info": "clear_path"
                 },
                 {
-                    "type": "group",
-                    "left": btn_start_w + gap + btn_dest_w + gap,
-                    "top": 0,
-                    "width": btn_clear_w,
-                    "height": btn_h,
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": "Clear Path",
+                        "fill": "#e63946",
+                        "font": btn_font
+                    },
                     "cursor": "pointer",
-                    "info": "clear_path",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {
-                                "width": btn_clear_w,
-                                "height": btn_h,
-                                "r": 4
-                            },
-                            "style": {
-                                "fill": "#ffffff",
-                                "stroke": "#e63946",
-                                "lineWidth": 1.2,
-                                "shadowBlur": 3,
-                                "shadowColor": "rgba(0,0,0,0.1)",
-                                "shadowOffsetY": 1
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": "Clear Path",
-                                "fill": "#e63946",
-                                "font": btn_font
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        }
-                    ]
+                    "info": "clear_path"
                 }
             ]
         },
@@ -1008,7 +1090,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "backgroundColor": "#fbfaf6",
         "graphic": graphic_buttons,
         "grid": {
-            "show": False,
+            "show": True,
             "borderColor": "#b0bec5",
             "borderWidth": 1.5,
             "left": 35,
@@ -1019,6 +1101,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "legend": {
             "data": [
                 "Rooms",
+                "Room names",
                 "Gates",
                 "Gate names"
             ],
@@ -1399,7 +1482,7 @@ def main():
         static_map_data = build_static_map_data(graph, positions, rooms)
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
-        _, all_rooms, _, _, bounds = static_map_data
+        _, all_boxes, all_labels, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
         max_x = bounds["max_x"]
         min_y = bounds["min_y"]
@@ -1421,7 +1504,8 @@ def main():
             m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(destination), "Room_Name"].values[0] if (rooms["Room_ID"] == int(destination)).any() else f"Room {destination}"))
             marker_items.append({"pt": positions[int(destination)], "name": m_name, "r": 4.5 if is_mobile_device() else 6.5})
 
-        rooms_json = json.dumps(all_rooms)
+        boxes_json = json.dumps(all_boxes)
+        labels_json = json.dumps(all_labels)
         selected_ids_json = json.dumps(selected_ids)
         marker_items_json = json.dumps(marker_items)
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
@@ -1442,7 +1526,8 @@ def main():
 
                 var isShowAll = {show_all_val};
                 if (!isShowAll) {{
-                    window._masterRooms = window._masterRooms || {rooms_json};
+                    window._masterBoxes = window._masterBoxes || {boxes_json};
+                    window._masterLabels = window._masterLabels || {labels_json};
 
                     var zx = window._mapZoom[0];
                     var zy = window._mapZoom[1];
@@ -1514,13 +1599,13 @@ def main():
 
                     var selIds = {selected_ids_json};
                     var kept = {{}};
-                    var mRooms = window._masterRooms || [];
+                    var mBoxes = window._masterBoxes || [];
 
-                    for (var i = 0; i < mRooms.length; i++) {{
-                        var rid = mRooms[i].roomId;
+                    for (var i = 0; i < mBoxes.length; i++) {{
+                        var rid = mBoxes[i].roomId;
                         if (selIds.indexOf(rid) !== -1) continue;
 
-                        var bb = getBBox(mRooms[i]);
+                        var bb = getBBox(mBoxes[i]);
                         var collides = false;
                         for (var k = 0; k < keptBoxes.length; k++) {{
                             if (isOverlap(bb, keptBoxes[k])) {{
@@ -1536,14 +1621,16 @@ def main():
                     }}
 
                     var chart = dom ? echarts.getInstanceByDom(dom) : null;
-                    if (chart) {{
-                        var fb = mRooms.filter(function(r) {{
-                            return kept[r.roomId];
+                    if (chart && window._masterLabels) {{
+                        var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
+                        var fl = window._masterLabels.filter(function(r) {{
+                            return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
                         }});
                         chart.setOption({{
                             series: [
                                 {{ name: "Walkable path" }},
-                                {{ name: "Rooms", data: fb }}
+                                {{ name: "Rooms", data: fb }},
+                                {{ name: "Room names", data: fl }}
                             ]
                         }});
                     }}
