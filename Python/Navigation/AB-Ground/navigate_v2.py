@@ -91,8 +91,8 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         layout = room_label_layout(room_id, graph, positions)
         text = wrap_label(str(row.Room_Name))
         lines = text.split("\n")
-        text_w = max(len(l) for l in lines) * 4.9 + 2.0
-        text_h = len(lines) * 10.5
+        text_w = max(len(l) for l in lines) * 4.0
+        text_h = len(lines) * 9.0
 
         room_boxes.append({
             "id": f"room_box_{room_id}",
@@ -132,7 +132,8 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
             return 1
         return 2
 
-    room_boxes.sort(key=priority)
+    room_boxes.sort(key=lambda r: (priority(r), r["roomId"]))
+    room_labels.sort(key=lambda r: (priority(r), r["roomId"]))
 
     gate_boxes = [
         {
@@ -466,112 +467,67 @@ def room_label_layout(room_id, graph, positions):
     return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
-def get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r):
-    px = (r["value"][0] - cur_min_x) * scale_x
-    py = (r["value"][1] - cur_min_y) * scale_y
+def get_room_parts_bbox(r, scale_x, scale_y, cur_min_x, cur_max_y, box_r, grid_top):
+    px = 35.0 + (r["value"][0] - cur_min_x) * scale_x
+    py = grid_top + (cur_max_y - r["value"][1]) * scale_y
 
-    bx1, bx2 = px - box_r, px + box_r
-    by1, by2 = py - box_r, py + box_r
+    box_bbox = (px - box_r, px + box_r, py - box_r, py + box_r)
 
     tw = r["textW"]
     th = r["textH"]
     pos = r["layoutPos"]
-    dist = r["layoutDist"]
-    ox, oy = r["layoutOffset"]
+    dist = max(2.0, r["layoutDist"] * 0.4)
+    ox = r["layoutOffset"][0] if r["layoutOffset"] else 0
+    oy = r["layoutOffset"][1] if r["layoutOffset"] else 0
 
     if pos == "top":
-        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
-        ly1, ly2 = py + box_r + dist, py + box_r + dist + th
+        lx1 = px - tw / 2.0 + ox
+        lx2 = px + tw / 2.0 + ox
+        ly2 = py - box_r - dist
+        ly1 = ly2 - th
     elif pos == "bottom":
-        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
-        ly1, ly2 = py - box_r - dist - th, py - box_r - dist
+        lx1 = px - tw / 2.0 + ox
+        lx2 = px + tw / 2.0 + ox
+        ly1 = py + box_r + dist
+        ly2 = ly1 + th
     elif pos == "left":
-        lx1, lx2 = px - box_r - dist - tw, px - box_r - dist
-        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+        lx2 = px - box_r - dist
+        lx1 = lx2 - tw
+        ly1 = py - th / 2.0 + oy
+        ly2 = py + th / 2.0 + oy
     else:
-        lx1, lx2 = px + box_r + dist, px + box_r + dist + tw
-        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+        lx1 = px + box_r + dist
+        lx2 = lx1 + tw
+        ly1 = py - th / 2.0 + oy
+        ly2 = py + th / 2.0 + oy
 
-    return (
-        min(bx1, lx1) - 1.0,
-        max(bx2, lx2) + 1.0,
-        min(by1, ly1) - 1.0,
-        max(by2, ly2) + 1.0,
-    )
+    return {"box": box_bbox, "label": (lx1, lx2, ly1, ly2)}
 
 
-def get_marker_bbox(pt, name, scale_x, scale_y, cur_min_x, cur_min_y, marker_r):
-    px = (pt[0] - cur_min_x) * scale_x
-    py = (pt[1] - cur_min_y) * scale_y
+def get_marker_parts_bbox(pt, name, scale_x, scale_y, cur_min_x, cur_max_y, marker_r, grid_top):
+    px = 35.0 + (pt[0] - cur_min_x) * scale_x
+    py = grid_top + (cur_max_y - pt[1]) * scale_y
     lines = name.split("\n")
-    tw = max(len(l) for l in lines) * 4.9 + 8.0
-    th = len(lines) * 11.0 + 4.0
-    lx1, lx2 = px - tw / 2.0, px + tw / 2.0
-    ly1, ly2 = py + marker_r + 5.0, py + marker_r + 5.0 + th
-    return (
-        min(px - marker_r, lx1) - 1.0,
-        max(px + marker_r, lx2) + 1.0,
-        min(py - marker_r, ly1) - 1.0,
-        max(py + marker_r, ly2) + 1.0,
-    )
+    tw = max(len(l) for l in lines) * 4.0 + 4.0
+    th = len(lines) * 9.0 + 2.0
+    box_bbox = (px - marker_r, px + marker_r, py - marker_r, py + marker_r)
+    ly2 = py - marker_r - 2.0
+    ly1 = ly2 - th
+    label_bbox = (px - tw / 2.0, px + tw / 2.0, ly1, ly2)
+    return {"box": box_bbox, "label": label_bbox}
 
 
 def boxes_overlap(b1, b2):
     return b1[0] < b2[1] and b1[1] > b2[0] and b1[2] < b2[3] and b1[3] > b2[2]
 
 
-def get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r):
-    px = (r["value"][0] - cur_min_x) * scale_x
-    py = (r["value"][1] - cur_min_y) * scale_y
-
-    bx1, bx2 = px - box_r, px + box_r
-    by1, by2 = py - box_r, py + box_r
-
-    tw = r["textW"]
-    th = r["textH"]
-    pos = r["layoutPos"]
-    dist = r["layoutDist"]
-    ox, oy = r["layoutOffset"]
-
-    if pos == "top":
-        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
-        ly1, ly2 = py + box_r + dist, py + box_r + dist + th
-    elif pos == "bottom":
-        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
-        ly1, ly2 = py - box_r - dist - th, py - box_r - dist
-    elif pos == "left":
-        lx1, lx2 = px - box_r - dist - tw, px - box_r - dist
-        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
-    else:
-        lx1, lx2 = px + box_r + dist, px + box_r + dist + tw
-        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
-
+def room_collides_with(parts_a, parts_b):
     return (
-        min(bx1, lx1) - 1.0,
-        max(bx2, lx2) + 1.0,
-        min(by1, ly1) - 1.0,
-        max(by2, ly2) + 1.0
+        boxes_overlap(parts_a["box"], parts_b["box"])
+        or boxes_overlap(parts_a["box"], parts_b["label"])
+        or boxes_overlap(parts_a["label"], parts_b["box"])
+        or boxes_overlap(parts_a["label"], parts_b["label"])
     )
-
-
-def get_marker_bbox(pt, name, scale_x, scale_y, cur_min_x, cur_min_y, marker_r):
-    px = (pt[0] - cur_min_x) * scale_x
-    py = (pt[1] - cur_min_y) * scale_y
-    lines = name.split("\n")
-    tw = max(len(l) for l in lines) * 4.9 + 8.0
-    th = len(lines) * 11.0 + 4.0
-    lx1, lx2 = px - tw / 2.0, px + tw / 2.0
-    ly1, ly2 = py + marker_r + 5.0, py + marker_r + 5.0 + th
-    return (
-        min(px - marker_r, lx1) - 1.0,
-        max(px + marker_r, lx2) + 1.0,
-        min(py - marker_r, ly1) - 1.0,
-        max(py + marker_r, ly2) + 1.0
-    )
-
-
-def boxes_overlap(b1, b2):
-    return b1[0] < b2[1] and b1[1] > b2[0] and b1[2] < b2[3] and b1[3] > b2[2]
 
 
 def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
@@ -610,12 +566,17 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     if str(destination).isdigit():
         selected_ids.add(int(destination))
 
+    grid_top = 34 if is_mobile else 38
+    grid_bottom = 50 if is_mobile else 38
+
     if show_all:
         visible_boxes = room_boxes
         visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
     else:
-        grid_w = (350 if is_mobile else 800) - 70
-        grid_h = (300 if is_mobile else 600) - 85
+        chart_w = st.session_state.get("chart_width") or (375.0 if is_mobile else 1150.0)
+        chart_h = st.session_state.get("chart_height") or (350.0 if is_mobile else 650.0)
+        grid_w = chart_w - 70.0
+        grid_h = chart_h - (grid_top + grid_bottom)
         span_x = max_x - min_x
         span_y = max_y - min_y
         cur_min_x = min_x + span_x * (zoom_x_start / 100.0)
@@ -626,21 +587,21 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         scale_x = grid_w / max(cur_max_x - cur_min_x, 1e-5)
         scale_y = grid_h / max(cur_max_y - cur_min_y, 1e-5)
 
-        kept_boxes = []
+        kept_parts = []
         kept_ids = set()
 
         if origin == "Custom" and st.session_state.get("custom_origin"):
             m_pt = st.session_state.custom_origin["point"]
-            kept_boxes.append(get_marker_bbox(m_pt, "Custom Start", scale_x, scale_y, cur_min_x, cur_min_y, marker_orig_size / 2.0))
+            kept_parts.append(get_marker_parts_bbox(m_pt, "Custom Start", scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top))
         elif str(origin).isdigit() and int(origin) in positions:
             m_pt = positions[int(origin)]
             m_name = wrap_label(str(name_lookup.get(int(origin), f"Room {origin}")))
-            kept_boxes.append(get_marker_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_min_y, marker_orig_size / 2.0))
+            kept_parts.append(get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top))
 
         if str(destination).isdigit() and int(destination) in positions:
             m_pt = positions[int(destination)]
             m_name = wrap_label(str(name_lookup.get(int(destination), f"Room {destination}")))
-            kept_boxes.append(get_marker_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_min_y, marker_dest_size / 2.0))
+            kept_parts.append(get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_dest_size / 2.0, grid_top))
 
         box_r = room_size / 2.0
         for r in room_boxes:
@@ -648,17 +609,17 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             if rid in selected_ids:
                 continue
 
-            r_bbox = get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r)
+            r_parts = get_room_parts_bbox(r, scale_x, scale_y, cur_min_x, cur_max_y, box_r, grid_top)
 
             collides = False
-            for kb in kept_boxes:
-                if boxes_overlap(r_bbox, kb):
+            for kp in kept_parts:
+                if room_collides_with(r_parts, kp):
                     collides = True
                     break
 
             if not collides:
                 kept_ids.add(rid)
-                kept_boxes.append(r_bbox)
+                kept_parts.append(r_parts)
 
         visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
         visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
@@ -712,7 +673,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "itemStyle": {"color": "#2f8fbd"},
             "labelLayout": {
-                "hideOverlap": not show_all
+                "hideOverlap": False
             },
             "data": visible_labels,
             "cursor": cursor_style,
@@ -741,7 +702,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "itemStyle": {"color": "#202a2e"},
             "labelLayout": {
-                "hideOverlap": not show_all
+                "hideOverlap": False
             },
             "data": visible_gate_labels,
             "cursor": cursor_style,
@@ -787,7 +748,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": "Custom Start",
                 "position": "top",
-                "distance": 5,
+                "distance": 4,
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -795,7 +756,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "borderColor": "#202a2e",
                 "borderWidth": 1,
                 "borderRadius": 3,
-                "padding": [2, 4]
+                "padding": [1, 3]
             }
         })
     elif origin not in (None, "-"):
@@ -815,7 +776,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": orig_name,
                 "position": "top",
-                "distance": 5,
+                "distance": 4,
                 "color": "#1f2937",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -823,7 +784,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "borderColor": "#202a2e",
                 "borderWidth": 1,
                 "borderRadius": 3,
-                "padding": [2, 4]
+                "padding": [1, 3]
             }
         })
 
@@ -844,7 +805,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "show": True,
                 "formatter": dest_name,
                 "position": "top",
-                "distance": 5,
+                "distance": 4,
                 "color": "#0d3c26",
                 "fontWeight": "bold",
                 "fontSize": label_font_size,
@@ -852,7 +813,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "borderColor": "#2ca25f",
                 "borderWidth": 1.5,
                 "borderRadius": 3,
-                "padding": [2, 4]
+                "padding": [1, 3]
             }
         })
 
@@ -882,9 +843,9 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     btn_start_w = 55 if is_mobile else 70
     btn_dest_w = 85 if is_mobile else 100
     btn_clear_w = 60 if is_mobile else 70
-    gap = 5 if is_mobile else 6
-    btn_font = f"600 {9 if is_mobile else 10}px sans-serif"
-    btn_top = 8 if is_mobile else 10
+    gap = 4 if is_mobile else 6
+    btn_font = f"600 {8 if is_mobile else 9.5}px sans-serif"
+    btn_top = 7 if is_mobile else 8
 
     left_group_w = btn_start_w + gap + btn_dest_w
 
@@ -892,13 +853,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     show_all_border = "#2ca25f" if show_all else "#b0bec5"
     show_all_text_color = "#ffffff" if show_all else "#263238"
     show_all_label = "Show All: ON" if show_all else "Show All: OFF"
-    show_all_w = 62 if is_mobile else 68
-    show_all_h = 18 if is_mobile else 20
+    show_all_w = 60 if is_mobile else 68
+    show_all_h = 16 if is_mobile else 19
 
     graphic_buttons = [
         {
             "type": "group",
-            "left": 12 if is_mobile else 35,
+            "left": 10 if is_mobile else 35,
             "top": btn_top,
             "width": left_group_w,
             "height": btn_h,
@@ -920,13 +881,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "shape": {
                                 "width": btn_start_w,
                                 "height": btn_h,
-                                "r": 4
+                                "r": 3 if is_mobile else 4
                             },
                             "style": {
                                 "fill": start_bg,
                                 "stroke": start_border,
                                 "lineWidth": 1.2,
-                                "shadowBlur": 3,
+                                "shadowBlur": 2,
                                 "shadowColor": "rgba(0,0,0,0.1)",
                                 "shadowOffsetY": 1
                             },
@@ -963,13 +924,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "shape": {
                                 "width": btn_dest_w,
                                 "height": btn_h,
-                                "r": 4
+                                "r": 3 if is_mobile else 4
                             },
                             "style": {
                                 "fill": dest_bg,
                                 "stroke": dest_border,
                                 "lineWidth": 1.2,
-                                "shadowBlur": 3,
+                                "shadowBlur": 2,
                                 "shadowColor": "rgba(0,0,0,0.1)",
                                 "shadowOffsetY": 1
                             },
@@ -994,7 +955,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         },
         {
             "type": "group",
-            "right": 12 if is_mobile else 35,
+            "right": 10 if is_mobile else 35,
             "top": btn_top,
             "width": btn_clear_w,
             "height": btn_h,
@@ -1009,13 +970,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                     "shape": {
                         "width": btn_clear_w,
                         "height": btn_h,
-                        "r": 4
+                        "r": 3 if is_mobile else 4
                     },
                     "style": {
                         "fill": "#ffffff",
                         "stroke": "#e63946",
                         "lineWidth": 1.2,
-                        "shadowBlur": 3,
+                        "shadowBlur": 2,
                         "shadowColor": "rgba(0,0,0,0.1)",
                         "shadowOffsetY": 1
                     },
@@ -1054,7 +1015,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                     "shape": {
                         "width": show_all_w,
                         "height": show_all_h,
-                        "r": 3 if is_mobile else 4
+                        "r": 3
                     },
                     "style": {
                         "fill": show_all_bg,
@@ -1074,7 +1035,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                     "style": {
                         "text": show_all_label,
                         "fill": show_all_text_color,
-                        "font": f"600 {8 if is_mobile else 9}px sans-serif"
+                        "font": f"600 {7.5 if is_mobile else 8.5}px sans-serif"
                     },
                     "cursor": "pointer",
                     "info": "toggle_show_all"
@@ -1083,14 +1044,11 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         }
     ]
 
-    grid_top = 38 if is_mobile else 42
-    grid_bottom = 52 if is_mobile else 40
-
     return {
         "backgroundColor": "#fbfaf6",
         "graphic": graphic_buttons,
         "grid": {
-            "show": True,
+            "show": False,
             "borderColor": "#b0bec5",
             "borderWidth": 1.5,
             "left": 35,
@@ -1105,7 +1063,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "Gates",
                 "Gate names"
             ],
-            "bottom": 28 if is_mobile else 6,
+            "bottom": 26 if is_mobile else 6,
             "left": "center" if is_mobile else 35,
             "orient": "horizontal",
             "itemGap": 8 if is_mobile else 12,
@@ -1205,6 +1163,12 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
     event = clicked_data.get("chart_event", clicked_data)
     if not isinstance(event, dict):
         return False
+
+    cw = event.get("chartWidth")
+    ch = event.get("chartHeight")
+    if cw and ch:
+        st.session_state.chart_width = float(cw)
+        st.session_state.chart_height = float(ch)
 
     dz = event.get("dataZoom")
     if dz and isinstance(dz, list) and len(dz) >= 2 and dz[0] and dz[1]:
@@ -1479,6 +1443,10 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
+        if "render_token" not in st.session_state:
+            st.session_state.render_token = 0
+        st.session_state.render_token += 1
+
         static_map_data = build_static_map_data(graph, positions, rooms)
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
@@ -1510,131 +1478,165 @@ def main():
         marker_items_json = json.dumps(marker_items)
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
-        grid_top = 38 if is_mobile_device() else 42
-        grid_bottom = 52 if is_mobile_device() else 40
+        grid_top = 34 if is_mobile_device() else 38
+        grid_bottom = 50 if is_mobile_device() else 38
+
+        filter_fn_body = f"""
+            var isShowAll = {show_all_val};
+            if (isShowAll) return;
+
+            window._masterBoxes = {boxes_json};
+            window._masterLabels = {labels_json};
+
+            var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+            var chart = dom ? echarts.getInstanceByDom(dom) : null;
+            if (!chart) return;
+
+            var opt = chart.getOption();
+            var dz = (opt && opt.dataZoom) ? opt.dataZoom : null;
+            var zx = (dz && dz[0]) ? dz[0] : ((window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}});
+            var zy = (dz && dz[1]) ? dz[1] : ((window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}});
+            window._mapZoom = [{{start: zx.start, end: zx.end}}, {{start: zy.start, end: zy.end}}];
+
+            var w = (dom.clientWidth || 1150) - 70;
+            var h = (dom.clientHeight || 650) - {grid_top + grid_bottom};
+
+            var curToken = {st.session_state.render_token};
+            if (window._lastRenderToken !== curToken) {{
+                window._lastRenderToken = curToken;
+                window._lastProcessedZoomKey = null;
+                window._lastShowAllState = null;
+            }}
+
+            var zoomKey = (zx ? zx.start.toFixed(2) + "_" + zx.end.toFixed(2) : "0_100") + "_" + (zy ? zy.start.toFixed(2) + "_" + zy.end.toFixed(2) : "0_100") + "_" + Math.round(w);
+            if (window._lastProcessedZoomKey === zoomKey && window._lastShowAllState === isShowAll) return;
+            window._lastProcessedZoomKey = zoomKey;
+            window._lastShowAllState = isShowAll;
+
+            var minX = {min_x}, maxX = {max_x};
+            var minY = {min_y}, maxY = {max_y};
+            var curMinX = minX + (maxX - minX) * ((zx ? zx.start : 0) / 100.0);
+            var curMaxX = minX + (maxX - minX) * ((zx ? zx.end : 100) / 100.0);
+            var curMinY = minY + (maxY - minY) * ((zy ? zy.start : 0) / 100.0);
+            var curMaxY = minY + (maxY - minY) * ((zy ? zy.end : 100) / 100.0);
+
+            var scaleX = w / Math.max(curMaxX - curMinX, 0.0001);
+            var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
+
+            var isMob = {"true" if is_mobile_device() else "false"};
+            var boxR = (isMob ? 4.5 : 8.0) / 2.0;
+
+            function getRoomParts(r) {{
+                var px = 35 + (r.value[0] - curMinX) * scaleX;
+                var py = {grid_top} + (curMaxY - r.value[1]) * scaleY;
+                var bBox = [px - boxR, px + boxR, py - boxR, py + boxR];
+                var tw = r.textW || 18, th = r.textH || 9;
+                var pos = r.layoutPos || "top", dist = Math.max(2, (r.layoutDist || 8) * 0.4);
+                var ox = (r.layoutOffset && r.layoutOffset[0]) || 0;
+                var oy = (r.layoutOffset && r.layoutOffset[1]) || 0;
+                var lx1, lx2, ly1, ly2;
+                if (pos === "top") {{
+                    lx1 = px - tw / 2 + ox;
+                    lx2 = px + tw / 2 + ox;
+                    ly2 = py - boxR - dist;
+                    ly1 = ly2 - th;
+                }} else if (pos === "bottom") {{
+                    lx1 = px - tw / 2 + ox;
+                    lx2 = px + tw / 2 + ox;
+                    ly1 = py + boxR + dist;
+                    ly2 = ly1 + th;
+                }} else if (pos === "left") {{
+                    lx2 = px - boxR - dist;
+                    lx1 = lx2 - tw;
+                    ly1 = py - th / 2 + oy;
+                    ly2 = py + th / 2 + oy;
+                }} else {{
+                    lx1 = px + boxR + dist;
+                    lx2 = lx1 + tw;
+                    ly1 = py - th / 2 + oy;
+                    ly2 = py + th / 2 + oy;
+                }}
+                return {{ box: bBox, label: [lx1, lx2, ly1, ly2] }};
+            }}
+
+            function getMarkerParts(m) {{
+                var px = 35 + (m.pt[0] - curMinX) * scaleX;
+                var py = {grid_top} + (curMaxY - m.pt[1]) * scaleY;
+                var mr = m.r;
+                var lines = (m.name || "").split("\\n");
+                var maxL = 0;
+                for (var i = 0; i < lines.length; i++) {{
+                    if (lines[i].length > maxL) maxL = lines[i].length;
+                }}
+                var tw = maxL * 4.0 + 4;
+                var th = lines.length * 9.0 + 2;
+                var bBox = [px - mr, px + mr, py - mr, py + mr];
+                var ly2 = py - mr - 2;
+                var ly1 = ly2 - th;
+                return {{ box: bBox, label: [px - tw / 2, px + tw / 2, ly1, ly2] }};
+            }}
+
+            function isOverlap(a, b) {{
+                return a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2];
+            }}
+
+            function partsCollide(pA, pB) {{
+                return isOverlap(pA.box, pB.box) ||
+                       isOverlap(pA.box, pB.label) ||
+                       isOverlap(pA.label, pB.box) ||
+                       isOverlap(pA.label, pB.label);
+            }}
+
+            var keptParts = [];
+            var mItems = {marker_items_json};
+            for (var mi = 0; mi < mItems.length; mi++) {{
+                keptParts.push(getMarkerParts(mItems[mi]));
+            }}
+
+            var selIds = {selected_ids_json};
+            var kept = {{}};
+            var mBoxes = window._masterBoxes || [];
+
+            for (var i = 0; i < mBoxes.length; i++) {{
+                var rid = mBoxes[i].roomId;
+                if (selIds.indexOf(rid) !== -1) continue;
+
+                var parts = getRoomParts(mBoxes[i]);
+                var collides = false;
+                for (var k = 0; k < keptParts.length; k++) {{
+                    if (partsCollide(parts, keptParts[k])) {{
+                        collides = true;
+                        break;
+                    }}
+                }}
+
+                if (!collides) {{
+                    kept[rid] = true;
+                    keptParts.push(parts);
+                }}
+            }}
+
+            if (window._masterLabels) {{
+                var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
+                var fl = window._masterLabels.filter(function(r) {{
+                    return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
+                }});
+                chart.setOption({{
+                    series: [
+                        {{ name: "Walkable path" }},
+                        {{ name: "Rooms", data: fb }},
+                        {{ name: "Room names", data: fl }}
+                    ]
+                }});
+            }}
+        """
 
         events = {
+            "finished": f"""function() {{
+                {filter_fn_body}
+            }}""",
             "datazoom": f"""function(p) {{
-                window._mapZoom = window._mapZoom || [{{start: 0, end: 100}}, {{start: 0, end: 100}}];
-                var b = p.batch || [p];
-                for (var i = 0; i < b.length; i++) {{
-                    var idx = (b[i].dataZoomIndex !== undefined) ? b[i].dataZoomIndex : i;
-                    if (idx < 2) {{
-                        window._mapZoom[idx] = {{ start: b[i].start, end: b[i].end }};
-                    }}
-                }}
-
-                var isShowAll = {show_all_val};
-                if (!isShowAll) {{
-                    window._masterBoxes = window._masterBoxes || {boxes_json};
-                    window._masterLabels = window._masterLabels || {labels_json};
-
-                    var zx = window._mapZoom[0];
-                    var zy = window._mapZoom[1];
-                    var minX = {min_x}, maxX = {max_x};
-                    var minY = {min_y}, maxY = {max_y};
-                    var curMinX = minX + (maxX - minX) * ((zx ? zx.start : 0) / 100.0);
-                    var curMaxX = minX + (maxX - minX) * ((zx ? zx.end : 100) / 100.0);
-                    var curMinY = minY + (maxY - minY) * ((zy ? zy.start : 0) / 100.0);
-                    var curMaxY = minY + (maxY - minY) * ((zy ? zy.end : 100) / 100.0);
-
-                    var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
-                    var w = (dom ? dom.clientWidth : 800) - 70;
-                    var h = (dom ? dom.clientHeight : 600) - 85;
-                    var scaleX = w / Math.max(curMaxX - curMinX, 0.0001);
-                    var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
-
-                    var isMob = {"true" if is_mobile_device() else "false"};
-                    var boxR = (isMob ? 4.5 : 8.0) / 2.0;
-
-                    function getBBox(r) {{
-                        var px = (r.value[0] - curMinX) * scaleX;
-                        var py = (r.value[1] - curMinY) * scaleY;
-                        var bx1 = px - boxR, bx2 = px + boxR;
-                        var by1 = py - boxR, by2 = py + boxR;
-                        var tw = r.textW || 24, th = r.textH || 10;
-                        var pos = r.layoutPos || "top", dist = r.layoutDist || 8;
-                        var ox = (r.layoutOffset && r.layoutOffset[0]) || 0;
-                        var oy = (r.layoutOffset && r.layoutOffset[1]) || 0;
-                        var lx1, lx2, ly1, ly2;
-                        if (pos === "top") {{
-                            lx1 = px - tw / 2 + ox; lx2 = px + tw / 2 + ox;
-                            ly1 = py + boxR + dist; ly2 = py + boxR + dist + th;
-                        }} else if (pos === "bottom") {{
-                            lx1 = px - tw / 2 + ox; lx2 = px + tw / 2 + ox;
-                            ly1 = py - boxR - dist - th; ly2 = py - boxR - dist;
-                        }} else if (pos === "left") {{
-                            lx1 = px - boxR - dist - tw; lx2 = px - boxR - dist;
-                            ly1 = py - th / 2 + oy; ly2 = py + th / 2 + oy;
-                        }} else {{
-                            lx1 = px + boxR + dist; lx2 = px + boxR + dist + tw;
-                            ly1 = py - th / 2 + oy; ly2 = py + th / 2 + oy;
-                        }}
-                        return [Math.min(bx1, lx1) - 1, Math.max(bx2, lx2) + 1, Math.min(by1, ly1) - 1, Math.max(by2, ly2) + 1];
-                    }}
-
-                    function getMarkerBBox(m) {{
-                        var px = (m.pt[0] - curMinX) * scaleX;
-                        var py = (m.pt[1] - curMinY) * scaleY;
-                        var mr = m.r;
-                        var lines = (m.name || "").split("\\n");
-                        var maxL = 0;
-                        for (var i = 0; i < lines.length; i++) {{ if (lines[i].length > maxL) maxL = lines[i].length; }}
-                        var tw = maxL * 4.9 + 8;
-                        var th = lines.length * 11 + 4;
-                        var lx1 = px - tw / 2, lx2 = px + tw / 2;
-                        var ly1 = py + mr + 5, ly2 = py + mr + 5 + th;
-                        return [Math.min(px - mr, lx1) - 1, Math.max(px + mr, lx2) + 1, Math.min(py - mr, ly1) - 1, Math.max(py + mr, ly2) + 1];
-                    }}
-
-                    function isOverlap(a, b) {{
-                        return a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2];
-                    }}
-
-                    var keptBoxes = [];
-                    var mItems = {marker_items_json};
-                    for (var mi = 0; mi < mItems.length; mi++) {{
-                        keptBoxes.push(getMarkerBBox(mItems[mi]));
-                    }}
-
-                    var selIds = {selected_ids_json};
-                    var kept = {{}};
-                    var mBoxes = window._masterBoxes || [];
-
-                    for (var i = 0; i < mBoxes.length; i++) {{
-                        var rid = mBoxes[i].roomId;
-                        if (selIds.indexOf(rid) !== -1) continue;
-
-                        var bb = getBBox(mBoxes[i]);
-                        var collides = false;
-                        for (var k = 0; k < keptBoxes.length; k++) {{
-                            if (isOverlap(bb, keptBoxes[k])) {{
-                                collides = true;
-                                break;
-                            }}
-                        }}
-
-                        if (!collides) {{
-                            kept[rid] = true;
-                            keptBoxes.push(bb);
-                        }}
-                    }}
-
-                    var chart = dom ? echarts.getInstanceByDom(dom) : null;
-                    if (chart && window._masterLabels) {{
-                        var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
-                        var fl = window._masterLabels.filter(function(r) {{
-                            return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
-                        }});
-                        chart.setOption({{
-                            series: [
-                                {{ name: "Walkable path" }},
-                                {{ name: "Rooms", data: fb }},
-                                {{ name: "Room names", data: fl }}
-                            ]
-                        }});
-                    }}
-                }}
+                {filter_fn_body}
             }}""",
             "click": f"""function(params) {{
                 function getGraphicInfo(p) {{
@@ -1648,15 +1650,23 @@ def main():
                     return null;
                 }}
 
+                var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+                var w = dom ? dom.clientWidth : null;
+                var h = dom ? dom.clientHeight : null;
+
                 var gInfo = getGraphicInfo(params);
                 if (params.componentType === 'graphic' || gInfo) {{
+                    if (gInfo === 'clear_path') {{
+                        window._lastProcessedZoomKey = null;
+                    }}
                     return {{
                         graphicAction: gInfo,
-                        dataZoom: window._mapZoom || null
+                        dataZoom: window._mapZoom || null,
+                        chartWidth: w,
+                        chartHeight: h
                     }};
                 }}
 
-                var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
                 var pe = params.event || {{}};
                 var nativeEvt = pe.event || pe;
                 var rect = dom ? dom.getBoundingClientRect() : null;
@@ -1688,7 +1698,9 @@ def main():
                         coords: null,
                         edge: null,
                         clickCoord: null,
-                        dataZoom: window._mapZoom || null
+                        dataZoom: window._mapZoom || null,
+                        chartWidth: w,
+                        chartHeight: h
                     }};
                 }}
 
@@ -1717,7 +1729,9 @@ def main():
                     coords: (params.data && params.data.coords) ? params.data.coords : null,
                     edge: (params.data && params.data.edge) ? params.data.edge : null,
                     clickCoord: clickPt,
-                    dataZoom: window._mapZoom || null
+                    dataZoom: window._mapZoom || null,
+                    chartWidth: w,
+                    chartHeight: h
                 }};
             }}"""
         }
