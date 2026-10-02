@@ -858,6 +858,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     btn_start_w = 55 if is_mobile else 70
     btn_dest_w = 85 if is_mobile else 100
     btn_clear_w = 60 if is_mobile else 70
+    btn_reset_w = 65 if is_mobile else 75
     gap = 4 if is_mobile else 6
     btn_font = f"600 {8 if is_mobile else 9.5}px sans-serif"
     btn_top = 7 if is_mobile else 8
@@ -965,6 +966,50 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             "info": "toggle_dest"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "type": "group",
+            "right": (10 if is_mobile else 35) + btn_clear_w + gap,
+            "top": btn_top,
+            "width": btn_reset_w,
+            "height": btn_h,
+            "z": 100,
+            "cursor": "pointer",
+            "info": "reset_zoom",
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {
+                        "width": btn_reset_w,
+                        "height": btn_h,
+                        "r": 3 if is_mobile else 4
+                    },
+                    "style": {
+                        "fill": "#ffffff",
+                        "stroke": "#1976d2",
+                        "lineWidth": 1.2,
+                        "shadowBlur": 2,
+                        "shadowColor": "rgba(0,0,0,0.1)",
+                        "shadowOffsetY": 1
+                    },
+                    "cursor": "pointer",
+                    "info": "reset_zoom"
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": "Reset Zoom",
+                        "fill": "#1976d2",
+                        "font": btn_font
+                    },
+                    "cursor": "pointer",
+                    "info": "reset_zoom"
                 }
             ]
         },
@@ -1190,7 +1235,15 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
         st.session_state.map_zoom = dz
 
     action = event.get("graphicAction")
-    if action == "clear_path":
+    if action == "reset_zoom":
+        st.session_state.map_zoom = [
+            {"start": 0.0, "end": 100.0},
+            {"start": 0.0, "end": 100.0}
+        ]
+        st.session_state.zoom_reset = True
+        st.session_state.last_focus_key = None
+        return True
+    elif action == "clear_path":
         st.session_state.origin = "-"
         st.session_state.destination = "-"
         st.session_state.custom_origin = None
@@ -1266,6 +1319,7 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
 def on_origin_change():
     st.session_state.origin = st.session_state.origin_select
     st.session_state.last_focus_key = None
+    st.session_state.zoom_reset = False
 
     if st.session_state.origin != "-":
         st.session_state.click_target = "destination"
@@ -1274,6 +1328,7 @@ def on_origin_change():
 def on_destination_change():
     st.session_state.destination = st.session_state.destination_select
     st.session_state.last_focus_key = None
+    st.session_state.zoom_reset = False
 
     if st.session_state.destination != "-":
         st.session_state.click_target = None
@@ -1349,6 +1404,9 @@ def main():
 
     if "last_focus_key" not in st.session_state:
         st.session_state.last_focus_key = None
+
+    if "zoom_reset" not in st.session_state:
+        st.session_state.zoom_reset = False
 
     st.session_state.origin_select = st.session_state.origin
     st.session_state.destination_select = st.session_state.destination
@@ -1473,8 +1531,7 @@ def main():
         if (origin not in (None, "-") and destination not in (None, "-") and (str(origin).isdigit() or origin == "Custom") and str(destination).isdigit()):
             focus_key = f"{origin}_{destination}_{len(route_coords) if route_coords else 0}"
 
-            if st.session_state.last_focus_key != focus_key:
-
+            if (st.session_state.zoom_reset is False) and (st.session_state.last_focus_key != focus_key):
                 if origin == "Custom" and st.session_state.get("custom_origin"):
                     origin_point = st.session_state.custom_origin["point"]
                 elif str(origin).isdigit() and int(origin) in positions:
@@ -1498,7 +1555,9 @@ def main():
                     )
 
                 st.session_state.last_focus_key = focus_key
-
+                st.session_state.zoom_reset = False
+            else:
+                st.session_state.zoom_reset = False
         else:
             st.session_state.last_focus_key = None
 
