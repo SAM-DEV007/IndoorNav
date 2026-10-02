@@ -906,6 +906,21 @@ def main():
     static_map_data = build_static_map_data(graph, positions, rooms)
 
     st.set_page_config(page_title="AB Ground Navigation", layout="wide")
+    st.markdown("""
+        <style>
+        [data-testid="stAppViewContainer"],
+        [data-testid="stAppViewBlockContainer"],
+        [data-testid="stMain"],
+        [data-testid="stHeader"] {
+            opacity: 1 !important;
+        }
+
+        [data-stale="false"],
+        [data-stale="true"] {
+            opacity: 1 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
