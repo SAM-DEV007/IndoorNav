@@ -67,7 +67,7 @@ def hash_networkx_graph(graph: nx.Graph):
 
 
 @st.cache_data(hash_funcs={nx.Graph: hash_networkx_graph})
-def build_static_map_data(graph, positions, rooms):
+def build_static_map_data(graph: nx.Graph, positions, rooms):
     base_lines = []
 
     for left, right in graph.edges:
