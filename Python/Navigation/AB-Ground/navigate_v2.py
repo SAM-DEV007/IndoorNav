@@ -1714,6 +1714,7 @@ def main():
                 var ox = (r.layoutOffset && r.layoutOffset[0]) || 0;
                 var oy = (r.layoutOffset && r.layoutOffset[1]) || 0;
                 var lx1, lx2, ly1, ly2;
+
                 if (pos === "top") {{
                     lx1 = px - tw / 2 + ox;
                     lx2 = px + tw / 2 + ox;
@@ -1735,6 +1736,7 @@ def main():
                     ly1 = py - th / 2 + oy;
                     ly2 = py + th / 2 + oy;
                 }}
+
                 return {{ box: bBox, label: [lx1, lx2, ly1, ly2] }};
             }}
 
@@ -1744,19 +1746,26 @@ def main():
                 var mr = m.r;
                 var lines = (m.name || "").split("\\n");
                 var maxL = 0;
+
                 for (var i = 0; i < lines.length; i++) {{
                     if (lines[i].length > maxL) maxL = lines[i].length;
                 }}
+
                 var tw = maxL * 4.0 + 4;
                 var th = lines.length * 9.0 + 2;
                 var bBox = [px - mr, px + mr, py - mr, py + mr];
                 var ly2 = py - mr - 2;
                 var ly1 = ly2 - th;
-                return {{ box: bBox, label: [px - tw / 2, px + tw / 2, ly1, ly2] }};
+
+                return {{
+                    box: bBox,
+                    label: [px - tw / 2, px + tw / 2, ly1, ly2]
+                }};
             }}
 
             function isOverlap(a, b) {{
-                return a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2];
+                return a[0] < b[1] && a[1] > b[0] &&
+                       a[2] < b[3] && a[3] > b[2];
             }}
 
             function partsCollide(pA, pB) {{
@@ -1766,10 +1775,86 @@ def main():
                        isOverlap(pA.label, pB.label);
             }}
 
+            var CELL_SIZE = 50;
+            var collisionGrid = new Map();
+
+            function gridCoord(value) {{
+                return Math.floor(value / CELL_SIZE);
+            }}
+
+            function gridKey(x, y) {{
+                return x + "," + y;
+            }}
+
+            function addToCollisionGrid(grid, parts) {{
+                var boxes = [parts.box, parts.label];
+
+                for (var bi = 0; bi < boxes.length; bi++) {{
+                    var b = boxes[bi];
+
+                    var minGX = gridCoord(b[0]);
+                    var maxGX = gridCoord(b[1]);
+                    var minGY = gridCoord(b[2]);
+                    var maxGY = gridCoord(b[3]);
+
+                    for (var gx = minGX; gx <= maxGX; gx++) {{
+                        for (var gy = minGY; gy <= maxGY; gy++) {{
+                            var key = gridKey(gx, gy);
+
+                            if (!grid.has(key)) {{
+                                grid.set(key, []);
+                            }}
+
+                            grid.get(key).push(parts);
+                        }}
+                    }}
+                }}
+            }}
+
+            function getNearbyCollisionParts(grid, parts) {{
+                var result = [];
+                var seen = new Set();
+
+                var boxes = [parts.box, parts.label];
+
+                for (var bi = 0; bi < boxes.length; bi++) {{
+                    var b = boxes[bi];
+
+                    var minGX = gridCoord(b[0]) - 1;
+                    var maxGX = gridCoord(b[1]) + 1;
+                    var minGY = gridCoord(b[2]) - 1;
+                    var maxGY = gridCoord(b[3]) + 1;
+
+                    for (var gx = minGX; gx <= maxGX; gx++) {{
+                        for (var gy = minGY; gy <= maxGY; gy++) {{
+                            var key = gridKey(gx, gy);
+                            var candidates = grid.get(key);
+
+                            if (!candidates) continue;
+
+                            for (var ci = 0; ci < candidates.length; ci++) {{
+                                var candidate = candidates[ci];
+
+                                if (!seen.has(candidate)) {{
+                                    seen.add(candidate);
+                                    result.push(candidate);
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+
+                return result;
+            }}
+
             var keptParts = [];
             var mItems = {marker_items_json};
+
             for (var mi = 0; mi < mItems.length; mi++) {{
-                keptParts.push(getMarkerParts(mItems[mi]));
+                var markerParts = getMarkerParts(mItems[mi]);
+
+                keptParts.push(markerParts);
+                addToCollisionGrid(collisionGrid, markerParts);
             }}
 
             var selIds = {selected_ids_json};
@@ -1778,12 +1863,16 @@ def main():
 
             for (var i = 0; i < mBoxes.length; i++) {{
                 var rid = mBoxes[i].roomId;
+
                 if (selIds.indexOf(rid) !== -1) continue;
 
                 var parts = getRoomParts(mBoxes[i]);
                 var collides = false;
-                for (var k = 0; k < keptParts.length; k++) {{
-                    if (partsCollide(parts, keptParts[k])) {{
+
+                var nearbyParts = getNearbyCollisionParts(collisionGrid, parts);
+
+                for (var k = 0; k < nearbyParts.length; k++) {{
+                    if (partsCollide(parts, nearbyParts[k])) {{
                         collides = true;
                         break;
                     }}
@@ -1792,14 +1881,19 @@ def main():
                 if (!collides) {{
                     kept[rid] = true;
                     keptParts.push(parts);
+                    addToCollisionGrid(collisionGrid, parts);
                 }}
             }}
 
             if (window._masterLabels) {{
-                var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
+                var fb = mBoxes.filter(function(r) {{
+                    return kept[r.roomId];
+                }});
+
                 var fl = window._masterLabels
                     .filter(function(r) {{
-                        return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
+                        return kept[r.roomId] &&
+                               selIds.indexOf(r.roomId) === -1;
                     }})
                     .map(function(r) {{
                         return {{
@@ -1811,6 +1905,7 @@ def main():
                             }}
                         }};
                     }});
+
                 chart.setOption({{
                     series: [
                         {{ name: "Walkable path" }},
