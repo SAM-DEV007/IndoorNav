@@ -1286,7 +1286,7 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
                 st.session_state.custom_origin = None
             else:
                 st.session_state.custom_origin = {
-                    "point": (snapped_x, snapped_y),
+                    "point": (round(snapped_x, 2), round(snapped_y, 2)),
                     "edge": (u, v)
                 }
                 st.session_state.origin = "Custom"
