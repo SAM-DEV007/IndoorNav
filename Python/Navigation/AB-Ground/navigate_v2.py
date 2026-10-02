@@ -46,11 +46,15 @@ def load_map_data():
     return graph, positions, rooms, routes, room_ids, room_tree, node_ids, node_tree
 
 
-@st.cache_data
-def build_static_map_data(_graph, positions, rooms):
+def hash_networkx_graph(graph: nx.Graph):
+    return (len(graph.nodes), len(graph.edges))
+
+
+@st.cache_data(hash_funcs={nx.Graph: hash_networkx_graph})
+def build_static_map_data(graph, positions, rooms):
     base_lines = []
 
-    for left, right in _graph.edges:
+    for left, right in graph.edges:
         x1, y1 = positions[left]
         x2, y2 = positions[right]
 
@@ -67,7 +71,7 @@ def build_static_map_data(_graph, positions, rooms):
         room_id = int(row.Room_ID)
         x, y = positions[room_id]
 
-        layout = room_label_layout(room_id, _graph, positions)
+        layout = room_label_layout(room_id, graph, positions)
         text = wrap_label(str(row.Room_Name))
 
         room_boxes.append({
