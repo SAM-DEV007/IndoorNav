@@ -1616,15 +1616,17 @@ def main():
         if str(destination).isdigit():
             selected_ids.append(int(destination))
 
+        is_mobile = is_mobile_device()
+
         marker_items = []
         if origin == "Custom" and st.session_state.get("custom_origin"):
-            marker_items.append({"pt": st.session_state.custom_origin["point"], "name": "Custom Start", "r": 3.5 if is_mobile_device() else 5.0})
+            marker_items.append({"pt": st.session_state.custom_origin["point"], "name": "Custom Start", "r": 3.5 if is_mobile else 5.0})
         elif str(origin).isdigit() and int(origin) in positions:
             m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(origin), "Room_Name"].values[0] if (rooms["Room_ID"] == int(origin)).any() else f"Room {origin}"))
-            marker_items.append({"pt": positions[int(origin)], "name": m_name, "r": 3.5 if is_mobile_device() else 5.0})
+            marker_items.append({"pt": positions[int(origin)], "name": m_name, "r": 3.5 if is_mobile else 5.0})
         if str(destination).isdigit() and int(destination) in positions:
             m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(destination), "Room_Name"].values[0] if (rooms["Room_ID"] == int(destination)).any() else f"Room {destination}"))
-            marker_items.append({"pt": positions[int(destination)], "name": m_name, "r": 4.5 if is_mobile_device() else 6.5})
+            marker_items.append({"pt": positions[int(destination)], "name": m_name, "r": 4.5 if is_mobile else 6.5})
 
         boxes_json = json.dumps(all_boxes)
         labels_json = json.dumps(all_labels)
@@ -1632,8 +1634,8 @@ def main():
         marker_items_json = json.dumps(marker_items)
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
-        grid_top = 34 if is_mobile_device() else 38
-        grid_bottom = 50 if is_mobile_device() else 38
+        grid_top = 34 if is_mobile else 38
+        grid_bottom = 50 if is_mobile else 38
 
         filter_fn_body = f"""
             if (typeof window._mapZoomReset === 'undefined') {{
@@ -1704,7 +1706,7 @@ def main():
             var scaleX = w / Math.max(curMaxX - curMinX, 0.0001);
             var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
 
-            var isMob = {"true" if is_mobile_device() else "false"};
+            var isMob = {"true" if is_mobile else "false"};
             var fontScale = isMob ? 0.75 : 1.0;
             var roomLabelFontSize = isMob ? 6 : 8;
             var roomLabelLineHeight = isMob ? 8 : 10;
@@ -1962,7 +1964,7 @@ def main():
         clicked_data = st_echarts(
             options=options,
             events=events,
-            height="350px" if is_mobile_device() else "650px",
+            height="350px" if is_mobile else "650px",
             key="floorplan"
         )
 
