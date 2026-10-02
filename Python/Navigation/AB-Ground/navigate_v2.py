@@ -196,7 +196,6 @@ def calculate_turn_direction(v1, v2):
         return "uturn", "Make a U-turn", "↩"
 
 
-
 def get_intersection_rooms(pt, positions, labels, start_label, dest_label, graph=None, room_ids=None, room_tree=None, node_ids=None, node_tree=None, proximity_radius=5.0):
     if node_tree is None or node_ids is None:
         return []
