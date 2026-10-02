@@ -422,13 +422,28 @@ def room_label_layout(room_id, graph, positions):
 	return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
-@st.cache_data
-def build_static_echarts_series(_static_map_data):
-    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, _ = _static_map_data
+def get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data):
+    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
 
-    return [
+    min_x = bounds["min_x"]
+    max_x = bounds["max_x"]
+    min_y = bounds["min_y"]
+    max_y = bounds["max_y"]
+
+    mz = st.session_state.get("map_zoom")
+
+    zoom_x_start = mz[0]["start"] if mz and len(mz) > 0 and "start" in mz[0] else 0
+    zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
+    zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
+    zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
+
+    click_target = st.session_state.get("click_target")
+    is_active = bool(click_target)
+    cursor_style = "pointer" if is_active else "grab"
+    is_silent = not is_active
+
+    series = [
         {
-            "id": "walkable",
             "name": "Walkable path",
             "type": "lines",
             "coordinateSystem": "cartesian2d",
@@ -441,11 +456,11 @@ def build_static_echarts_series(_static_map_data):
                 "join": "round"
             },
             "clip": True,
-            "cursor": "pointer",
+            "cursor": cursor_style,
+            "silent": is_silent,
             "tooltip": {"show": False}
         },
         {
-            "id": "rooms",
             "name": "Rooms",
             "type": "scatter",
             "symbol": "rect",
@@ -456,20 +471,21 @@ def build_static_echarts_series(_static_map_data):
                 "borderWidth": 1
             },
             "data": room_boxes,
+            "cursor": cursor_style,
             "z": 20
         },
         {
-            "id": "room_names",
             "name": "Room names",
             "type": "scatter",
             "symbol": "rect",
             "symbolSize": 0,
             "itemStyle": {"color": "#2f8fbd"},
             "data": room_labels,
+            "cursor": cursor_style,
+            "silent": is_silent,
             "z": 21
         },
         {
-            "id": "gates",
             "name": "Gates",
             "type": "scatter",
             "symbol": "circle",
@@ -479,299 +495,41 @@ def build_static_echarts_series(_static_map_data):
                 "borderWidth": 2
             },
             "data": gate_boxes,
+            "cursor": cursor_style,
             "z": 20
         },
         {
-            "id": "gate_names",
             "name": "Gate names",
             "type": "scatter",
             "symbol": "circle",
             "symbolSize": 0,
             "itemStyle": {"color": "#202a2e"},
             "data": gate_labels,
+            "cursor": cursor_style,
+            "silent": is_silent,
             "z": 21
         }
     ]
 
-
-@st.cache_data
-def build_graphic_buttons(start_active, dest_active):
-    start_bg = "#2ca25f" if start_active else "#ffffff"
-    start_border = "#2ca25f" if start_active else "#b0bec5"
-    start_text_color = "#ffffff" if start_active else "#263238"
-    start_label = "Start: Active" if start_active else "Set Start"
-
-    dest_bg = "#2ca25f" if dest_active else "#ffffff"
-    dest_border = "#2ca25f" if dest_active else "#b0bec5"
-    dest_text_color = "#ffffff" if dest_active else "#263238"
-    dest_label = "Destination: Active" if dest_active else "Set Destination"
-
-    btn_h = 28
-    btn_clear_w = 85
-    btn_start_w = 95
-    btn_dest_w = 125
-    gap = 8
-    total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
-
-    return [
-        {
-            "type": "group",
-            "left": "center",
-            "top": 12,
-            "width": total_w,
-            "height": btn_h,
-            "z": 100,
-            "children": [
-                {
-                    "type": "group",
-                    "left": 0,
-                    "top": 0,
-                    "width": btn_clear_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "clear_path",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {"width": btn_clear_w, "height": btn_h, "r": 5},
-                            "style": {
-                                "fill": "#ffffff",
-                                "stroke": "#e63946",
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": "Clear Path",
-                                "fill": "#e63946",
-                                "font": "600 11px sans-serif"
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        }
-                    ]
-                },
-                {
-                    "type": "group",
-                    "left": btn_clear_w + gap,
-                    "top": 0,
-                    "width": btn_start_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "toggle_origin",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {"width": btn_start_w, "height": btn_h, "r": 5},
-                            "style": {
-                                "fill": start_bg,
-                                "stroke": start_border,
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_origin"
-                        },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": start_label,
-                                "fill": start_text_color,
-                                "font": "600 11px sans-serif"
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_origin"
-                        }
-                    ]
-                },
-                {
-                    "type": "group",
-                    "left": btn_clear_w + gap + btn_start_w + gap,
-                    "top": 0,
-                    "width": btn_dest_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "toggle_dest",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {"width": btn_dest_w, "height": btn_h, "r": 5},
-                            "style": {
-                                "fill": dest_bg,
-                                "stroke": dest_border,
-                                "lineWidth": 1.5,
-                                "shadowBlur": 4,
-                                "shadowColor": "rgba(0,0,0,0.12)",
-                                "shadowOffsetY": 2
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_dest"
-                        },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": dest_label,
-                                "fill": dest_text_color,
-                                "font": "600 11px sans-serif"
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_dest"
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
-
-
-@st.cache_data
-def build_echarts_events(min_x, max_x, min_y, max_y):
-    return {
-        "datazoom": """function(p) {
-            window._mapZoom = window._mapZoom || [{start: 0, end: 100}, {start: 0, end: 100}];
-            var b = p.batch || [p];
-            for (var i = 0; i < b.length; i++) {
-                var idx = (b[i].dataZoomIndex !== undefined) ? b[i].dataZoomIndex : i;
-                if (idx < 2) {
-                    window._mapZoom[idx] = { start: b[i].start, end: b[i].end };
-                }
-            }
-        }""",
-        "click": f"""function(params) {{
-            var gInfo = params.info || (params.target && params.target.info);
-            if (params.componentType === 'graphic' || gInfo) {{
-                return {{
-                    graphicAction: gInfo,
-                    dataZoom: window._mapZoom || null
-                }};
-            }}
-
-            var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
-            var pe = params.event || {{}};
-            var nativeEvt = pe.event || pe;
-            var rect = dom ? dom.getBoundingClientRect() : null;
-
-            var touch = (nativeEvt.changedTouches && nativeEvt.changedTouches[0]) ||
-                        (nativeEvt.touches && nativeEvt.touches[0]) ||
-                        nativeEvt;
-
-            var clientX = touch.clientX !== undefined ? touch.clientX : null;
-            var clientY = touch.clientY !== undefined ? touch.clientY : null;
-
-            var px = (pe.zrX !== undefined) ? pe.zrX : (
-                    (pe.offsetX !== undefined) ? pe.offsetX : (
-                    (rect && clientX !== null) ? clientX - rect.left : null));
-
-            var py = (pe.zrY !== undefined) ? pe.zrY : (
-                    (pe.offsetY !== undefined) ? pe.offsetY : (
-                    (rect && clientY !== null) ? clientY - rect.top : null));
-
-            var gridLeft = 35;
-            var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
-            var gridTop = 55;
-            var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 48;
-
-            if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
-                return {{
-                    roomId: null,
-                    value: null,
-                    coords: null,
-                    edge: null,
-                    clickCoord: null,
-                    dataZoom: window._mapZoom || null
-                }};
-            }}
-
-            var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
-            var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
-
-            var minX = {min_x}, maxX = {max_x};
-            var minY = {min_y}, maxY = {max_y};
-
-            var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
-            var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
-            var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
-            var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
-
-            var normX = (px - gridLeft) / (gridRight - gridLeft);
-            var normY = (gridBottom - py) / (gridBottom - gridTop);
-
-            var clickPt = [
-                curMinX + normX * (curMaxX - curMinX),
-                curMinY + normY * (curMaxY - curMinY)
-            ];
-
-            return {{
-                roomId: params.data ? params.data.roomId : null,
-                value: params.value,
-                coords: (params.data && params.data.coords) ? params.data.coords : null,
-                edge: (params.data && params.data.edge) ? params.data.edge : null,
-                clickCoord: clickPt,
-                dataZoom: window._mapZoom || null
-            }};
-        }}"""
-    }
-
-
-def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
-    _, _, _, _, _, bounds = static_map_data
-
-    min_x = bounds["min_x"]
-    max_x = bounds["max_x"]
-    min_y = bounds["min_y"]
-    max_y = bounds["max_y"]
-
-    mz = st.session_state.get("map_zoom")
-    zoom_x_start = mz[0]["start"] if mz and len(mz) > 0 and "start" in mz[0] else 0
-    zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
-    zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
-    zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
-
-    click_target = st.session_state.get("click_target")
-    start_active = click_target == "origin"
-    dest_active = click_target == "destination"
-
-    static_series = build_static_echarts_series(static_map_data)
-
-    route_series = {
-        "id": "route",
-        "name": "Shortest route",
-        "type": "lines",
-        "coordinateSystem": "cartesian2d",
-        "polyline": True,
-        "data": [{"coords": route_coords}] if route_coords else [],
-        "lineStyle": {
-            "color": "#e4572e",
-            "width": 5,
-            "opacity": 1,
-            "cap": "round",
-            "join": "round"
-        },
-        "clip": True,
-        "z": 10,
-        "silent": True,
-        "tooltip": {"show": False}
-    }
+    if route_coords:
+        series.append({
+            "name": "Shortest route",
+            "type": "lines",
+            "coordinateSystem": "cartesian2d",
+            "polyline": True,
+            "data": [{"coords": route_coords}],
+            "lineStyle": {
+                "color": "#e4572e",
+                "width": 5,
+                "opacity": 1,
+                "cap": "round",
+                "join": "round"
+            },
+            "clip": True,
+            "z": 10,
+            "silent": True,
+            "tooltip": {"show": False}
+        })
 
     marker_data = []
 
@@ -810,18 +568,180 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             }
         })
 
-    marker_series = {
-        "id": "markers",
+    series.append({
         "type": "scatter",
         "data": marker_data,
         "z": 30,
+        "cursor": cursor_style,
         "silent": True,
         "tooltip": {"show": False}
-    }
+    })
+
+    start_active = click_target == "origin"
+    start_bg = "#2ca25f" if start_active else "#ffffff"
+    start_border = "#2ca25f" if start_active else "#b0bec5"
+    start_text_color = "#ffffff" if start_active else "#263238"
+    start_label = "Start: Active" if start_active else "Set Start"
+
+    dest_active = click_target == "destination"
+    dest_bg = "#2ca25f" if dest_active else "#ffffff"
+    dest_border = "#2ca25f" if dest_active else "#b0bec5"
+    dest_text_color = "#ffffff" if dest_active else "#263238"
+    dest_label = "Destination: Active" if dest_active else "Set Destination"
+
+    btn_h = 28
+    btn_clear_w = 85
+    btn_start_w = 95
+    btn_dest_w = 125
+    gap = 8
+
+    total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
+
+    graphic_buttons = [
+        {
+            "type": "group",
+            "left": "center",
+            "top": 12,
+            "width": total_w,
+            "height": btn_h,
+            "z": 100,
+            "children": [
+                {
+                    "type": "group",
+                    "left": 0,
+                    "top": 0,
+                    "width": btn_clear_w,
+                    "height": btn_h,
+                    "cursor": "pointer",
+                    "info": "clear_path",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {
+                                "width": btn_clear_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
+                            "style": {
+                                "fill": "#ffffff",
+                                "stroke": "#e63946",
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": "Clear Path",
+                                "fill": "#e63946",
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
+                        }
+                    ]
+                },
+                {
+                    "type": "group",
+                    "left": btn_clear_w + gap,
+                    "top": 0,
+                    "width": btn_start_w,
+                    "height": btn_h,
+                    "cursor": "pointer",
+                    "info": "toggle_origin",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {
+                                "width": btn_start_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
+                            "style": {
+                                "fill": start_bg,
+                                "stroke": start_border,
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_origin"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": start_label,
+                                "fill": start_text_color,
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_origin"
+                        }
+                    ]
+                },
+                {
+                    "type": "group",
+                    "left": btn_clear_w + gap + btn_start_w + gap,
+                    "top": 0,
+                    "width": btn_dest_w,
+                    "height": btn_h,
+                    "cursor": "pointer",
+                    "info": "toggle_dest",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {
+                                "width": btn_dest_w,
+                                "height": btn_h,
+                                "r": 5
+                            },
+                            "style": {
+                                "fill": dest_bg,
+                                "stroke": dest_border,
+                                "lineWidth": 1.5,
+                                "shadowBlur": 4,
+                                "shadowColor": "rgba(0,0,0,0.12)",
+                                "shadowOffsetY": 2
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_dest"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": dest_label,
+                                "fill": dest_text_color,
+                                "font": "600 11px sans-serif"
+                            },
+                            "cursor": "pointer",
+                            "info": "toggle_dest"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 
     return {
         "backgroundColor": "#fbfaf6",
-        "graphic": build_graphic_buttons(start_active, dest_active),
+        "graphic": graphic_buttons,
         "grid": {
             "show": True,
             "borderColor": "#b0bec5",
@@ -832,7 +752,12 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "bottom": 48
         },
         "legend": {
-            "data": ["Rooms", "Room names", "Gates", "Gate names"],
+            "data": [
+                "Rooms",
+                "Room names",
+                "Gates",
+                "Gate names"
+            ],
             "bottom": 6,
             "left": "center",
             "orient": "horizontal",
@@ -883,12 +808,12 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "moveOnMouseMove": True
             }
         ],
-        "series": static_series + [route_series, marker_series],
+        "series": series,
         "animation": False
     }
 
 
-def handle_map_click(clicked_data, positions, room_ids, room_tree):
+def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
 
@@ -986,6 +911,12 @@ def main():
     labels["-"] = "-"
     labels["Custom"] = "Custom (Path)"
 
+    room_options_origin = ["-"] + (
+        ["Custom"] if st.session_state.get("origin") == "Custom" else []
+    ) + list(rooms.Room_ID)
+
+    room_options_destination = ["-"] + list(rooms.Room_ID)
+
     if "origin" not in st.session_state:
         st.session_state.origin = "-"
 
@@ -994,12 +925,6 @@ def main():
 
     if "click_target" not in st.session_state:
         st.session_state.click_target = "origin"
-
-    room_options_origin = ["-"] + (
-        ["Custom"] if st.session_state.get("origin") == "Custom" else []
-    ) + list(rooms.Room_ID)
-
-    room_options_destination = ["-"] + list(rooms.Room_ID)
 
     st.session_state.origin_select = st.session_state.origin
     st.session_state.destination_select = st.session_state.destination
@@ -1116,7 +1041,7 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
-        options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
+        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data)
 
         _, _, _, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
@@ -1124,7 +1049,91 @@ def main():
         min_y = bounds["min_y"]
         max_y = bounds["max_y"]
 
-        events = build_echarts_events(min_x, max_x, min_y, max_y)
+        events = {
+            "datazoom": """function(p) {
+                window._mapZoom = window._mapZoom || [{start: 0, end: 100}, {start: 0, end: 100}];
+                var b = p.batch || [p];
+                for (var i = 0; i < b.length; i++) {
+                    var idx = (b[i].dataZoomIndex !== undefined) ? b[i].dataZoomIndex : i;
+                    if (idx < 2) {
+                        window._mapZoom[idx] = { start: b[i].start, end: b[i].end };
+                    }
+                }
+            }""",
+            "click": f"""function(params) {{
+                var gInfo = params.info || (params.target && params.target.info);
+                if (params.componentType === 'graphic' || gInfo) {{
+                    return {{
+                        graphicAction: gInfo,
+                        dataZoom: window._mapZoom || null
+                    }};
+                }}
+
+                var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+                var pe = params.event || {{}};
+                var nativeEvt = pe.event || pe;
+                var rect = dom ? dom.getBoundingClientRect() : null;
+
+                var touch = (nativeEvt.changedTouches && nativeEvt.changedTouches[0]) ||
+                            (nativeEvt.touches && nativeEvt.touches[0]) ||
+                            nativeEvt;
+
+                var clientX = touch.clientX !== undefined ? touch.clientX : null;
+                var clientY = touch.clientY !== undefined ? touch.clientY : null;
+
+                var px = (pe.zrX !== undefined) ? pe.zrX : (
+                        (pe.offsetX !== undefined) ? pe.offsetX : (
+                        (rect && clientX !== null) ? clientX - rect.left : null));
+
+                var py = (pe.zrY !== undefined) ? pe.zrY : (
+                        (pe.offsetY !== undefined) ? pe.offsetY : (
+                        (rect && clientY !== null) ? clientY - rect.top : null));
+
+                var gridLeft = 35;
+                var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
+                var gridTop = 55;
+                var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 48;
+
+                if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
+                    return {{
+                        roomId: null,
+                        value: null,
+                        coords: null,
+                        edge: null,
+                        clickCoord: null,
+                        dataZoom: window._mapZoom || null
+                    }};
+                }}
+
+                var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
+                var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
+
+                var minX = {min_x}, maxX = {max_x};
+                var minY = {min_y}, maxY = {max_y};
+
+                var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
+                var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
+                var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
+                var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
+
+                var normX = (px - gridLeft) / (gridRight - gridLeft);
+                var normY = (gridBottom - py) / (gridBottom - gridTop);
+
+                var clickPt = [
+                    curMinX + normX * (curMaxX - curMinX),
+                    curMinY + normY * (curMaxY - curMinY)
+                ];
+
+                return {{
+                    roomId: params.data ? params.data.roomId : null,
+                    value: params.value,
+                    coords: (params.data && params.data.coords) ? params.data.coords : null,
+                    edge: (params.data && params.data.edge) ? params.data.edge : null,
+                    clickCoord: clickPt,
+                    dataZoom: window._mapZoom || null
+                }};
+            }}"""
+        }
 
         clicked_data = st_echarts(
             options=options,
@@ -1133,7 +1142,7 @@ def main():
             key="floorplan"
         )
 
-        if handle_map_click(clicked_data, positions, room_ids, room_tree):
+        if handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
             st.rerun()
 
 
