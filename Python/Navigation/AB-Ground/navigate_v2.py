@@ -1265,6 +1265,7 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
 
 def on_origin_change():
     st.session_state.origin = st.session_state.origin_select
+    st.session_state.last_focus_key = None
 
     if st.session_state.origin != "-":
         st.session_state.click_target = "destination"
@@ -1272,6 +1273,7 @@ def on_origin_change():
 
 def on_destination_change():
     st.session_state.destination = st.session_state.destination_select
+    st.session_state.last_focus_key = None
 
     if st.session_state.destination != "-":
         st.session_state.click_target = None
@@ -1344,6 +1346,9 @@ def main():
 
     if "show_all" not in st.session_state:
         st.session_state.show_all = False
+
+    if "last_focus_key" not in st.session_state:
+        st.session_state.last_focus_key = None
 
     st.session_state.origin_select = st.session_state.origin
     st.session_state.destination_select = st.session_state.destination
@@ -1463,9 +1468,42 @@ def main():
         st.session_state.render_token += 1
 
         static_map_data = build_static_map_data(graph, positions, rooms)
+        _, all_boxes, all_labels, _, _, bounds = static_map_data
+
+        if (origin not in (None, "-") and destination not in (None, "-") and (str(origin).isdigit() or origin == "Custom") and str(destination).isdigit()):
+            focus_key = f"{origin}_{destination}_{len(route_coords) if route_coords else 0}"
+
+            if st.session_state.last_focus_key != focus_key:
+
+                if origin == "Custom" and st.session_state.get("custom_origin"):
+                    origin_point = st.session_state.custom_origin["point"]
+                elif str(origin).isdigit() and int(origin) in positions:
+                    origin_point = positions[int(origin)]
+                else:
+                    origin_point = None
+
+                destination_point = positions[int(destination)]
+
+                if origin_point is not None:
+                    focus_coords = [origin_point, destination_point]
+
+                    if route_coords:
+                        focus_coords.extend(route_coords)
+
+                    st.session_state.map_zoom = compute_auto_zoom(
+                        focus_coords,
+                        bounds,
+                        min_span=25.0,
+                        padding=0.20
+                    )
+
+                st.session_state.last_focus_key = focus_key
+
+        else:
+            st.session_state.last_focus_key = None
+
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
-        _, all_boxes, all_labels, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
         max_x = bounds["max_x"]
         min_y = bounds["min_y"]
