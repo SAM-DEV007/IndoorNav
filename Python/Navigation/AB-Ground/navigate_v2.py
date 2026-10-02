@@ -422,8 +422,8 @@ def room_label_layout(room_id, graph, positions):
 	return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
-def get_echarts_options(graph, positions, rooms, route_coords, origin, destination):
-    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = build_static_map_data(graph, positions, rooms)
+def get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data):
+    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
 
     min_x = bounds["min_x"]
     max_x = bounds["max_x"]
@@ -858,13 +858,18 @@ def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
                 "point": (snapped_x, snapped_y),
                 "edge": (u, v)
             }
+
             st.session_state.origin = "Custom"
             st.session_state.click_target = "destination"
+
             return True
         elif event.get("roomId"):
-            st.session_state.origin = int(event["roomId"])
+            selected_room = int(event["roomId"])
+
+            st.session_state.origin = selected_room
             st.session_state.custom_origin = None
             st.session_state.click_target = "destination"
+
             return True
 
     elif target_key == "destination":
@@ -882,23 +887,47 @@ def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
     return False
 
 
+def on_origin_change():
+    st.session_state.origin = st.session_state.origin_select
+
+    if st.session_state.origin != "-":
+        st.session_state.click_target = "destination"
+
+
+def on_destination_change():
+    st.session_state.destination = st.session_state.destination_select
+
+    if st.session_state.destination != "-":
+        st.session_state.click_target = None
+
+
 def main():
-    st.set_page_config(page_title="AB Ground Navigation", layout="wide")
-    
     graph, positions, rooms, routes, room_ids, room_tree, node_ids, node_tree = load_map_data()
+    static_map_data = build_static_map_data(graph, positions, rooms)
+
+    st.set_page_config(page_title="AB Ground Navigation", layout="wide")
 
     labels = dict(zip(rooms.Room_ID, rooms.label))
     labels["-"] = "-"
     labels["Custom"] = "Custom (Path)"
 
-    room_options = ["-"] + (["Custom"] if st.session_state.get("origin") == "Custom" else []) + list(rooms.Room_ID)
+    room_options_origin = ["-"] + (
+        ["Custom"] if st.session_state.get("origin") == "Custom" else []
+    ) + list(rooms.Room_ID)
+
+    room_options_destination = ["-"] + list(rooms.Room_ID)
 
     if "origin" not in st.session_state:
         st.session_state.origin = "-"
+
     if "destination" not in st.session_state:
         st.session_state.destination = "-"
+
     if "click_target" not in st.session_state:
         st.session_state.click_target = "origin"
+
+    st.session_state.origin_select = st.session_state.origin
+    st.session_state.destination_select = st.session_state.destination
 
     st.title("AB Ground Floor Navigation")
     st.caption("Choose rooms or click a corridor to place the destination location.")
@@ -906,32 +935,24 @@ def main():
     controls, map_column = st.columns([1, 2.7], gap="large")
     
     with controls:
-        default_origin = st.session_state.get("origin", "-")
-        default_dest = st.session_state.get("destination", "-")
-
-        origin = st.selectbox(
+        st.selectbox(
             "Starting room",
-            room_options,
-            index=room_options.index(default_origin) if default_origin in room_options else 0,
-            format_func=labels.get
+            room_options_origin,
+            key="origin_select",
+            format_func=labels.get,
+            on_change=on_origin_change,
         )
-        if origin != default_origin:
-            st.session_state.origin = origin
-            if origin != "-":
-                st.session_state.click_target = "destination"
-            st.rerun()
 
-        destination = st.selectbox(
+        st.selectbox(
             "Destination room",
-            room_options,
-            index=room_options.index(default_dest) if default_dest in room_options else 0,
-            format_func=labels.get
+            room_options_destination,
+            key="destination_select",
+            format_func=labels.get,
+            on_change=on_destination_change,
         )
-        if destination != default_dest:
-            st.session_state.destination = destination
-            if destination != "-":
-                st.session_state.click_target = None
-            st.rerun()
+
+        origin = st.session_state.origin
+        destination = st.session_state.destination
 
         route_coords = None
         route_distance = None
@@ -1020,13 +1041,13 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
-        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination)
+        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data)
 
-        all_x, all_y = zip(*positions.values())
-        x_span = max(all_x) - min(all_x)
-        y_span = max(all_y) - min(all_y)
-        min_x, max_x = min(all_x) - x_span * 0.08, max(all_x) + x_span * 0.08
-        min_y, max_y = min(all_y) - y_span * 0.08, max(all_y) + y_span * 0.08
+        _, _, _, _, _, bounds = static_map_data
+        min_x = bounds["min_x"]
+        max_x = bounds["max_x"]
+        min_y = bounds["min_y"]
+        max_y = bounds["max_y"]
 
         events = {
             "datazoom": """function(p) {
