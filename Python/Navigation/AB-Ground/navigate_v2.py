@@ -1387,6 +1387,9 @@ def main():
 
     room_options_destination = ["-"] + list(rooms.Room_ID)
 
+    if "map_zoom" not in st.session_state:
+        st.session_state.map_zoom = None
+
     if "origin" not in st.session_state:
         st.session_state.origin = "-"
 
