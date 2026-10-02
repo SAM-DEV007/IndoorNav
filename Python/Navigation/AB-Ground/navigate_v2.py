@@ -733,7 +733,7 @@ def build_echarts_events(min_x, max_x, min_y, max_y):
     }
 
 
-def get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data):
+def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
     _, _, _, _, _, bounds = static_map_data
 
     min_x = bounds["min_x"]
@@ -888,7 +888,7 @@ def get_echarts_options(graph, positions, rooms, route_coords, origin, destinati
     }
 
 
-def handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
+def handle_map_click(clicked_data, positions, room_ids, room_tree):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
 
@@ -1116,7 +1116,7 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
-        options = get_echarts_options(graph, positions, rooms, route_coords, origin, destination, static_map_data)
+        options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
         _, _, _, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
@@ -1133,7 +1133,7 @@ def main():
             key="floorplan"
         )
 
-        if handle_map_click(clicked_data, rooms, positions, room_ids, room_tree):
+        if handle_map_click(clicked_data, positions, room_ids, room_tree):
             st.rerun()
 
 
