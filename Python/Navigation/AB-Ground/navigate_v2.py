@@ -1706,6 +1706,8 @@ def main():
 
             var isMob = {"true" if is_mobile_device() else "false"};
             var fontScale = isMob ? 0.75 : 1.0;
+            var roomLabelFontSize = isMob ? 6 : 8;
+            var roomLabelLineHeight = isMob ? 8 : 10;
             var boxR = (isMob ? 4.5 : 8.0) / 2.0;
 
             function getRoomParts(r) {{
@@ -1801,9 +1803,20 @@ def main():
 
             if (window._masterLabels) {{
                 var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
-                var fl = window._masterLabels.filter(function(r) {{
-                    return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
-                }});
+                var fl = window._masterLabels
+                    .filter(function(r) {{
+                        return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
+                    }})
+                    .map(function(r) {{
+                        return {{
+                            ...r,
+                            label: {{
+                                ...r.label,
+                                fontSize: roomLabelFontSize,
+                                lineHeight: roomLabelLineHeight
+                            }}
+                        }};
+                    }});
                 chart.setOption({{
                     series: [
                         {{ name: "Walkable path" }},
