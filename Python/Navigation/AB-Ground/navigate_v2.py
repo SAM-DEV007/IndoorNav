@@ -1548,10 +1548,6 @@ def main():
             render_directions_ui(directions)
 
     with map_column:
-        if "render_token" not in st.session_state:
-            st.session_state.render_token = 0
-        st.session_state.render_token += 1
-
         static_map_data = build_static_map_data(graph, positions, rooms)
         _, all_boxes, all_labels, _, _, bounds = static_map_data
 
@@ -1686,13 +1682,6 @@ def main():
 
             var w = (dom.clientWidth || 1150) - 70;
             var h = (dom.clientHeight || 650) - {grid_top + grid_bottom};
-
-            var curToken = {st.session_state.render_token};
-            if (window._lastRenderToken !== curToken) {{
-                window._lastRenderToken = curToken;
-                window._lastProcessedZoomKey = null;
-                window._lastShowAllState = null;
-            }}
 
             var zoomKey = (zx ? zx.start.toFixed(2) + "_" + zx.end.toFixed(2) : "0_100") + "_" + (zy ? zy.start.toFixed(2) + "_" + zy.end.toFixed(2) : "0_100") + "_" + Math.round(w);
             if (window._lastProcessedZoomKey === zoomKey && window._lastShowAllState === isShowAll) return;
