@@ -1216,6 +1216,33 @@ def compute_auto_zoom(coords, bounds, min_span=25.0, padding=0.25):
     ]
 
 
+def compute_point_zoom(point, min_x, max_x, min_y, max_y, padding=50):
+    x, y = point
+
+    x_range = max_x - min_x
+    y_range = max_y - min_y
+
+    half_x = x_range * padding / 100.0
+    half_y = y_range * padding / 100.0
+
+    x0 = max(min_x, x - half_x)
+    x1 = min(max_x, x + half_x)
+
+    y0 = max(min_y, y - half_y)
+    y1 = min(max_y, y + half_y)
+
+    return [
+        {
+            "start": (x0 - min_x) / x_range * 100,
+            "end": (x1 - min_x) / x_range * 100,
+        },
+        {
+            "start": (y0 - min_y) / y_range * 100,
+            "end": (y1 - min_y) / y_range * 100,
+        },
+    ]
+
+
 def handle_map_click(clicked_data, positions, room_ids, room_tree):
     if not clicked_data or not isinstance(clicked_data, dict):
         return False
@@ -1525,6 +1552,32 @@ def main():
         static_map_data = build_static_map_data(graph, positions, rooms)
         _, all_boxes, all_labels, _, _, bounds = static_map_data
 
+        min_x = bounds["min_x"]
+        max_x = bounds["max_x"]
+        min_y = bounds["min_y"]
+        max_y = bounds["max_y"]
+
+        valid_origin = (origin not in (None, "-") and (str(origin).isdigit() or origin == "Custom"))
+        valid_destination = (destination not in (None, "-") and str(destination).isdigit())
+
+        if valid_origin and not valid_destination:
+            origin_coords = positions[int(origin)] if str(origin).isdigit() else st.session_state.custom_origin["point"] if st.session_state.get("custom_origin") else None
+            if origin_coords:
+                st.session_state.map_zoom = compute_point_zoom(
+                    origin_coords,
+                    min_x, max_x,
+                    min_y, max_y
+                )
+
+        elif valid_destination and not valid_origin:
+            destination_coords = positions[int(destination)] if str(destination).isdigit() else None
+            if destination_coords:
+                st.session_state.map_zoom = compute_point_zoom(
+                    destination_coords,
+                    min_x, max_x,
+                    min_y, max_y
+                )
+
         if (origin not in (None, "-") and destination not in (None, "-") and (str(origin).isdigit() or origin == "Custom") and str(destination).isdigit()) and (st.session_state.last_focus_key != 'RESET'):
             focus_key = f"{origin}_{destination}_{len(route_coords) if route_coords else 0}"
 
@@ -1556,11 +1609,6 @@ def main():
             st.session_state.last_focus_key = None
 
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
-
-        min_x = bounds["min_x"]
-        max_x = bounds["max_x"]
-        min_y = bounds["min_y"]
-        max_y = bounds["max_y"]
 
         selected_ids = []
         if str(origin).isdigit():
