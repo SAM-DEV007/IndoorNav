@@ -1,4 +1,5 @@
 import ast
+import json
 import math
 
 from pathlib import Path
@@ -91,12 +92,14 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         text = wrap_label(str(row.Room_Name))
 
         room_boxes.append({
+            "id": f"room_box_{room_id}",
             "value": [x, y],
             "roomId": room_id,
             "name": row.Room_Name
         })
 
         room_labels.append({
+            "id": f"room_label_{room_id}",
             "value": [x, y],
             "roomId": room_id,
             "name": row.Room_Name,
@@ -115,12 +118,14 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
 
     gate_boxes = [
         {
+            "id": "gate_box_1",
             "value": [positions[1][0], positions[1][1]],
             "roomId": 1,
             "name": "Front Gate",
             "itemStyle": {"color": "#e63946"}
         },
         {
+            "id": "gate_box_15",
             "value": [positions[15][0], positions[15][1]],
             "roomId": 15,
             "name": "Back Gate",
@@ -130,6 +135,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
 
     gate_labels = [
         {
+            "id": "gate_label_1",
             "value": [positions[1][0], positions[1][1]],
             "roomId": 1,
             "name": "Front Gate",
@@ -144,6 +150,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
             }
         },
         {
+            "id": "gate_label_15",
             "value": [positions[15][0], positions[15][1]],
             "roomId": 15,
             "name": "Back Gate",
@@ -411,38 +418,49 @@ def wrap_label(label, width=19):
             current = f"{current} {word}".strip()
     if current:
         lines.append(current)
-    return " ".join(lines)
+    return "\n".join(lines)
 
 
 def room_label_layout(room_id, graph, positions):
-	if room_id == 18:
-		return {"position": "right", "distance": 8, "offset": [0, -8]}
-	if room_id == 20:
-		return {"position": "top", "distance": 8, "offset": [0, 0]}
-	if room_id == 21:
-		return {"position": "top", "distance": 5, "offset": [0, 0]}
-	if room_id == 43:
-		return {"position": "top", "distance": 8, "offset": [0, 0]}
-	if room_id == 32:
-		return {"position": "left", "distance": 8, "offset": [0, 0]}
+    if room_id == 18:
+        return {"position": "right", "distance": 8, "offset": [0, -8]}
+    if room_id == 20:
+        return {"position": "top", "distance": 8, "offset": [0, 0]}
+    if room_id == 21:
+        return {"position": "top", "distance": 5, "offset": [0, 0]}
+    if room_id == 43:
+        return {"position": "top", "distance": 8, "offset": [0, 0]}
+    if room_id == 32:
+        return {"position": "left", "distance": 8, "offset": [0, 0]}
 
-	x, y = positions[room_id]
-	neighbors = list(graph.neighbors(room_id))
-	if not neighbors:
-		return {"position": "top", "distance": 8, "offset": [0, 0]}
+    x, y = positions[room_id]
+    neighbors = list(graph.neighbors(room_id))
+    if not neighbors:
+        return {"position": "top", "distance": 8, "offset": [0, 0]}
 
-	neighbor_x, neighbor_y = positions[neighbors[0]]
-	away_x, away_y = x - neighbor_x, y - neighbor_y
-	if abs(away_x) >= abs(away_y):
-		pos = "right" if away_x > 0 else "left"
-	else:
-		pos = "top" if away_y > 0 else "bottom"
+    neighbor_x, neighbor_y = positions[neighbors[0]]
+    away_x, away_y = x - neighbor_x, y - neighbor_y
+    if abs(away_x) >= abs(away_y):
+        pos = "right" if away_x > 0 else "left"
+    else:
+        pos = "top" if away_y > 0 else "bottom"
 
-	return {"position": pos, "distance": 8, "offset": [0, 0]}
+    return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
 def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
     base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
+
+    is_mobile = is_mobile_device()
+    show_all = st.session_state.get("show_all", False)
+
+    path_width = 6 if is_mobile else 10
+    route_width = 3.5 if is_mobile else 5
+    room_size = 7 if is_mobile else 10
+    gate_size = 11 if is_mobile else 15
+    marker_orig_size = 8 if is_mobile else 10
+    marker_dest_size = 11 if is_mobile else 15
+    label_font_size = 7 if is_mobile else 8
 
     min_x = bounds["min_x"]
     max_x = bounds["max_x"]
@@ -455,6 +473,67 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
     zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
     zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
+
+    name_lookup = {r["roomId"]: r["name"] for r in room_boxes}
+    name_lookup[1] = "Front Gate"
+    name_lookup[15] = "Back Gate"
+
+    selected_ids = set()
+    if str(origin).isdigit():
+        selected_ids.add(int(origin))
+    if str(destination).isdigit():
+        selected_ids.add(int(destination))
+
+    if show_all:
+        visible_boxes = room_boxes
+        visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
+    else:
+        grid_w = (350 if is_mobile else 800) - 70
+        grid_h = (300 if is_mobile else 600) - 95
+        span_x = max_x - min_x
+        span_y = max_y - min_y
+        cur_min_x = min_x + span_x * (zoom_x_start / 100.0)
+        cur_max_x = min_x + span_x * (zoom_x_end / 100.0)
+        cur_min_y = min_y + span_y * (zoom_y_start / 100.0)
+        cur_max_y = min_y + span_y * (zoom_y_end / 100.0)
+
+        scale_x = grid_w / max(cur_max_x - cur_min_x, 1e-5)
+        scale_y = grid_h / max(cur_max_y - cur_min_y, 1e-5)
+
+        min_dist = 18.0 if is_mobile else 22.0
+        min_dist_sq = min_dist * min_dist
+
+        kept_ids = set(selected_ids)
+        kept_pts = []
+
+        for b in room_boxes:
+            rid = b["roomId"]
+            if rid in kept_ids:
+                px = (b["value"][0] - cur_min_x) * scale_x
+                py = (b["value"][1] - cur_min_y) * scale_y
+                kept_pts.append((px, py))
+
+        for b in room_boxes:
+            rid = b["roomId"]
+            if rid in kept_ids:
+                continue
+            px = (b["value"][0] - cur_min_x) * scale_x
+            py = (b["value"][1] - cur_min_y) * scale_y
+
+            collides = False
+            for kx, ky in kept_pts:
+                if (px - kx) ** 2 + (py - ky) ** 2 < min_dist_sq:
+                    collides = True
+                    break
+
+            if not collides:
+                kept_ids.add(rid)
+                kept_pts.append((px, py))
+
+        visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
+        visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
+
+    visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
 
     click_target = st.session_state.get("click_target")
     is_active = bool(click_target)
@@ -469,7 +548,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "data": base_lines,
             "lineStyle": {
                 "color": "#d2dbde",
-                "width": 10,
+                "width": path_width,
                 "opacity": 1,
                 "cap": "round",
                 "join": "round"
@@ -483,13 +562,14 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "name": "Rooms",
             "type": "scatter",
             "symbol": "rect",
-            "symbolSize": 10,
+            "symbolSize": room_size,
             "itemStyle": {
                 "color": "#2f8fbd",
                 "borderColor": "#17465d",
                 "borderWidth": 1
             },
-            "data": room_boxes,
+            "clip": True,
+            "data": visible_boxes,
             "cursor": cursor_style,
             "z": 20
         },
@@ -498,8 +578,12 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "type": "scatter",
             "symbol": "rect",
             "symbolSize": 0,
+            "clip": True,
             "itemStyle": {"color": "#2f8fbd"},
-            "data": room_labels,
+            "labelLayout": {
+                "hideOverlap": not show_all
+            },
+            "data": visible_labels,
             "cursor": cursor_style,
             "silent": is_silent,
             "z": 21
@@ -508,11 +592,12 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "name": "Gates",
             "type": "scatter",
             "symbol": "circle",
-            "symbolSize": 15,
+            "symbolSize": gate_size,
             "itemStyle": {
                 "borderColor": "#202a2e",
                 "borderWidth": 2
             },
+            "clip": True,
             "data": gate_boxes,
             "cursor": cursor_style,
             "z": 20
@@ -522,11 +607,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "type": "scatter",
             "symbol": "circle",
             "symbolSize": 0,
+            "clip": True,
             "itemStyle": {"color": "#202a2e"},
-            "data": gate_labels,
+            "labelLayout": {
+                "hideOverlap": not show_all
+            },
+            "data": visible_gate_labels,
             "cursor": cursor_style,
             "silent": is_silent,
-            "z": 21
+            "z": 22
         }
     ]
 
@@ -539,7 +628,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "data": [{"coords": route_coords}],
             "lineStyle": {
                 "color": "#e4572e",
-                "width": 5,
+                "width": route_width,
                 "opacity": 1,
                 "cap": "round",
                 "join": "round"
@@ -555,42 +644,92 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     if origin == "Custom" and st.session_state.get("custom_origin"):
         cx, cy = st.session_state.custom_origin["point"]
         marker_data.append({
+            "id": "marker_custom_origin",
             "value": [cx, cy],
-            "symbolSize": 10,
+            "symbolSize": marker_orig_size,
             "itemStyle": {
                 "color": "#ffffff",
                 "borderColor": "#202a2e",
                 "borderWidth": 2
+            },
+            "label": {
+                "show": True,
+                "formatter": "Custom Start",
+                "position": "top",
+                "distance": 6,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": label_font_size,
+                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                "borderColor": "#202a2e",
+                "borderWidth": 1,
+                "borderRadius": 3,
+                "padding": [2, 4]
             }
         })
     elif origin not in (None, "-"):
-        ox, oy = positions[int(origin)]
+        orig_id = int(origin)
+        ox, oy = positions[orig_id]
+        orig_name = wrap_label(str(name_lookup.get(orig_id, f"Room {orig_id}")))
         marker_data.append({
+            "id": f"marker_origin_{orig_id}",
             "value": [ox, oy],
-            "symbolSize": 10,
+            "symbolSize": marker_orig_size,
             "itemStyle": {
                 "color": "#ffffff",
                 "borderColor": "#202a2e",
                 "borderWidth": 2
+            },
+            "label": {
+                "show": True,
+                "formatter": orig_name,
+                "position": "top",
+                "distance": 6,
+                "color": "#1f2937",
+                "fontWeight": "bold",
+                "fontSize": label_font_size,
+                "backgroundColor": "rgba(255, 255, 255, 0.95)",
+                "borderColor": "#202a2e",
+                "borderWidth": 1,
+                "borderRadius": 3,
+                "padding": [2, 4]
             }
         })
 
     if destination not in (None, "-"):
-        dx, dy = positions[int(destination)]
+        dest_id = int(destination)
+        dx, dy = positions[dest_id]
+        dest_name = wrap_label(str(name_lookup.get(dest_id, f"Room {dest_id}")))
         marker_data.append({
+            "id": f"marker_dest_{dest_id}",
             "value": [dx, dy],
-            "symbolSize": 15,
+            "symbolSize": marker_dest_size,
             "itemStyle": {
                 "color": "#2ca25f",
                 "borderColor": "#202a2e",
                 "borderWidth": 2
+            },
+            "label": {
+                "show": True,
+                "formatter": dest_name,
+                "position": "top",
+                "distance": 6,
+                "color": "#0d3c26",
+                "fontWeight": "bold",
+                "fontSize": label_font_size,
+                "backgroundColor": "#e8f5e9",
+                "borderColor": "#2ca25f",
+                "borderWidth": 1.5,
+                "borderRadius": 3,
+                "padding": [2, 4]
             }
         })
 
     series.append({
         "type": "scatter",
         "data": marker_data,
-        "z": 30,
+        "clip": True,
+        "z": 35,
         "cursor": cursor_style,
         "silent": True,
         "tooltip": {"show": False}
@@ -615,6 +754,13 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     gap = 8
 
     total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
+
+    show_all_bg = "#2ca25f" if show_all else "#ffffff"
+    show_all_border = "#2ca25f" if show_all else "#b0bec5"
+    show_all_text_color = "#ffffff" if show_all else "#263238"
+    show_all_label = "Show All: ON" if show_all else "Show All: OFF"
+    show_all_w = 64 if is_mobile else 70
+    show_all_h = 18 if is_mobile else 20
 
     graphic_buttons = [
         {
@@ -755,8 +901,56 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                     ]
                 }
             ]
+        },
+        {
+            "type": "group",
+            "left": "center" if is_mobile else None,
+            "right": None if is_mobile else 35,
+            "bottom": 6,
+            "width": show_all_w,
+            "height": show_all_h,
+            "z": 100,
+            "cursor": "pointer",
+            "info": "toggle_show_all",
+            "children": [
+                {
+                    "type": "rect",
+                    "left": "center",
+                    "top": "middle",
+                    "shape": {
+                        "width": show_all_w,
+                        "height": show_all_h,
+                        "r": 3 if is_mobile else 4
+                    },
+                    "style": {
+                        "fill": show_all_bg,
+                        "stroke": show_all_border,
+                        "lineWidth": 1.2,
+                        "shadowBlur": 2,
+                        "shadowColor": "rgba(0,0,0,0.1)",
+                        "shadowOffsetY": 1
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_show_all"
+                },
+                {
+                    "type": "text",
+                    "left": "center",
+                    "top": "middle",
+                    "style": {
+                        "text": show_all_label,
+                        "fill": show_all_text_color,
+                        "font": f"600 {8 if is_mobile else 9}px sans-serif"
+                    },
+                    "cursor": "pointer",
+                    "info": "toggle_show_all"
+                }
+            ]
         }
     ]
+
+    grid_top = 50
+    grid_bottom = 54 if is_mobile else 42
 
     return {
         "backgroundColor": "#fbfaf6",
@@ -767,8 +961,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "borderWidth": 1.5,
             "left": 35,
             "right": 35,
-            "top": 50,
-            "bottom": 48
+            "top": grid_top,
+            "bottom": grid_bottom
         },
         "legend": {
             "data": [
@@ -777,15 +971,15 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "Gates",
                 "Gate names"
             ],
-            "bottom": 6,
-            "left": "center",
+            "bottom": 28 if is_mobile else 6,
+            "left": "center" if is_mobile else 35,
             "orient": "horizontal",
-            "itemGap": 10,
-            "itemWidth": 14,
-            "itemHeight": 10,
+            "itemGap": 8 if is_mobile else 12,
+            "itemWidth": 12 if is_mobile else 14,
+            "itemHeight": 8 if is_mobile else 10,
             "textStyle": {
                 "color": "#263238",
-                "fontSize": 10
+                "fontSize": 9 if is_mobile else 10
             }
         },
         "xAxis": {
@@ -828,8 +1022,47 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             }
         ],
         "series": series,
-        "animation": False
+        "animation": True,
+        "animationDuration": 0,
     }
+
+
+def compute_auto_zoom(coords, bounds, min_span=25.0, padding=0.25):
+    xs = [pt[0] for pt in coords]
+    ys = [pt[1] for pt in coords]
+
+    c_min_x, c_max_x = min(xs), max(xs)
+    c_min_y, c_max_y = min(ys), max(ys)
+
+    center_x = (c_min_x + c_max_x) / 2.0
+    center_y = (c_min_y + c_max_y) / 2.0
+
+    box_w = max(c_max_x - c_min_x, min_span)
+    box_h = max(c_max_y - c_min_y, min_span)
+
+    half_w = (box_w / 2.0) * (1.0 + padding)
+    half_h = (box_h / 2.0) * (1.0 + padding)
+
+    b_min_x, b_max_x = bounds["min_x"], bounds["max_x"]
+    b_min_y, b_max_y = bounds["min_y"], bounds["max_y"]
+
+    total_w = b_max_x - b_min_x
+    total_h = b_max_y - b_min_y
+
+    target_min_x = max(b_min_x, center_x - half_w)
+    target_max_x = min(b_max_x, center_x + half_w)
+    target_min_y = max(b_min_y, center_y - half_h)
+    target_max_y = min(b_max_y, center_y + half_h)
+
+    start_x = (target_min_x - b_min_x) / total_w * 100.0
+    end_x = (target_max_x - b_min_x) / total_w * 100.0
+    start_y = (target_min_y - b_min_y) / total_h * 100.0
+    end_y = (target_max_y - b_min_y) / total_h * 100.0
+
+    return [
+        {"start": max(0.0, min(100.0, start_x)), "end": max(0.0, min(100.0, end_x))},
+        {"start": max(0.0, min(100.0, start_y)), "end": max(0.0, min(100.0, end_y))}
+    ]
 
 
 def handle_map_click(clicked_data, positions, room_ids, room_tree):
@@ -859,6 +1092,9 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
         curr = st.session_state.get("click_target")
         st.session_state.click_target = None if curr == "destination" else "destination"
         return True
+    elif action == "toggle_show_all":
+        st.session_state.show_all = not st.session_state.get("show_all", False)
+        return True
 
     target_key = st.session_state.get("click_target")
     if not target_key:
@@ -868,7 +1104,13 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
     edge = event.get("edge")
 
     if target_key == "origin":
-        if edge and click_pt:
+        if event.get("roomId"):
+            selected_room = int(event["roomId"])
+            st.session_state.origin = selected_room
+            st.session_state.custom_origin = None
+            st.session_state.click_target = "destination"
+            return True
+        elif edge and click_pt:
             u, v = edge
             pos_u = positions[u]
             pos_v = positions[v]
@@ -877,18 +1119,14 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
                 "point": (snapped_x, snapped_y),
                 "edge": (u, v)
             }
-
             st.session_state.origin = "Custom"
             st.session_state.click_target = "destination"
-
             return True
-        elif event.get("roomId"):
-            selected_room = int(event["roomId"])
-
+        elif click_pt:
+            selected_room = int(nearest_room(click_pt[0], click_pt[1], room_ids, room_tree))
             st.session_state.origin = selected_room
             st.session_state.custom_origin = None
             st.session_state.click_target = "destination"
-
             return True
 
     elif target_key == "destination":
@@ -962,6 +1200,9 @@ def main():
 
     if "click_target" not in st.session_state:
         st.session_state.click_target = "origin"
+
+    if "show_all" not in st.session_state:
+        st.session_state.show_all = False
 
     st.session_state.origin_select = st.session_state.origin
     st.session_state.destination_select = st.session_state.destination
@@ -1079,25 +1320,130 @@ def main():
         static_map_data = build_static_map_data(graph, positions, rooms)
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
-        _, _, _, _, _, bounds = static_map_data
+        _, all_boxes, all_labels, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
         max_x = bounds["max_x"]
         min_y = bounds["min_y"]
         max_y = bounds["max_y"]
 
+        selected_ids = []
+        if str(origin).isdigit():
+            selected_ids.append(int(origin))
+        if str(destination).isdigit():
+            selected_ids.append(int(destination))
+
+        boxes_json = json.dumps(all_boxes)
+        labels_json = json.dumps(all_labels)
+        selected_ids_json = json.dumps(selected_ids)
+        show_all_val = "true" if st.session_state.get("show_all", False) else "false"
+
+        grid_top = 50
+        grid_bottom = 54 if is_mobile_device() else 42
+
         events = {
-            "datazoom": """function(p) {
-                window._mapZoom = window._mapZoom || [{start: 0, end: 100}, {start: 0, end: 100}];
+            "datazoom": f"""function(p) {{
+                window._mapZoom = window._mapZoom || [{{start: 0, end: 100}}, {{start: 0, end: 100}}];
                 var b = p.batch || [p];
-                for (var i = 0; i < b.length; i++) {
+                for (var i = 0; i < b.length; i++) {{
                     var idx = (b[i].dataZoomIndex !== undefined) ? b[i].dataZoomIndex : i;
-                    if (idx < 2) {
-                        window._mapZoom[idx] = { start: b[i].start, end: b[i].end };
-                    }
-                }
-            }""",
+                    if (idx < 2) {{
+                        window._mapZoom[idx] = {{ start: b[i].start, end: b[i].end }};
+                    }}
+                }}
+
+                var isShowAll = {show_all_val};
+                if (!isShowAll) {{
+                    window._masterBoxes = window._masterBoxes || {boxes_json};
+                    window._masterLabels = window._masterLabels || {labels_json};
+
+                    var zx = window._mapZoom[0];
+                    var zy = window._mapZoom[1];
+                    var minX = {min_x}, maxX = {max_x};
+                    var minY = {min_y}, maxY = {max_y};
+                    var curMinX = minX + (maxX - minX) * ((zx ? zx.start : 0) / 100.0);
+                    var curMaxX = minX + (maxX - minX) * ((zx ? zx.end : 100) / 100.0);
+                    var curMinY = minY + (maxY - minY) * ((zy ? zy.start : 0) / 100.0);
+                    var curMaxY = minY + (maxY - minY) * ((zy ? zy.end : 100) / 100.0);
+
+                    var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+                    var w = (dom ? dom.clientWidth : 800) - 70;
+                    var h = (dom ? dom.clientHeight : 600) - 95;
+                    var scaleX = w / Math.max(curMaxX - curMinX, 0.0001);
+                    var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
+
+                    var isMob = {"true" if is_mobile_device() else "false"};
+                    var minDist = isMob ? 18.0 : 22.0;
+                    var minDistSq = minDist * minDist;
+
+                    var selIds = {selected_ids_json};
+                    var kept = {{}};
+                    var keptPts = [];
+
+                    for (var s = 0; s < selIds.length; s++) {{
+                        kept[selIds[s]] = true;
+                    }}
+
+                    var mBoxes = window._masterBoxes || [];
+                    for (var i = 0; i < mBoxes.length; i++) {{
+                        var rid = mBoxes[i].roomId;
+                        if (kept[rid]) {{
+                            var px = (mBoxes[i].value[0] - curMinX) * scaleX;
+                            var py = (mBoxes[i].value[1] - curMinY) * scaleY;
+                            keptPts.push([px, py]);
+                        }}
+                    }}
+
+                    for (var i = 0; i < mBoxes.length; i++) {{
+                        var rid = mBoxes[i].roomId;
+                        if (kept[rid]) continue;
+                        var px = (mBoxes[i].value[0] - curMinX) * scaleX;
+                        var py = (mBoxes[i].value[1] - curMinY) * scaleY;
+
+                        var collides = false;
+                        for (var k = 0; k < keptPts.length; k++) {{
+                            var dx = px - keptPts[k][0];
+                            var dy = py - keptPts[k][1];
+                            if (dx * dx + dy * dy < minDistSq) {{
+                                collides = true;
+                                break;
+                            }}
+                        }}
+
+                        if (!collides) {{
+                            kept[rid] = true;
+                            keptPts.push([px, py]);
+                        }}
+                    }}
+
+                    var chart = dom ? echarts.getInstanceByDom(dom) : null;
+                    if (chart && window._masterLabels) {{
+                        var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
+                        var fl = window._masterLabels.filter(function(r) {{
+                            return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
+                        }});
+                        chart.setOption({{
+                            series: [
+                                {{ name: "Walkable path" }},
+                                {{ name: "Rooms", data: fb }},
+                                {{ name: "Room names", data: fl }}
+                            ]
+                        }});
+                    }}
+                }}
+            }}""",
             "click": f"""function(params) {{
-                var gInfo = params.info || (params.target && params.target.info);
+                function getGraphicInfo(p) {{
+                    if (!p) return null;
+                    if (p.info) return p.info;
+                    var t = p.target;
+                    while (t) {{
+                        if (t.info) return t.info;
+                        t = t.parent;
+                    }}
+                    return null;
+                }}
+
+                var gInfo = getGraphicInfo(params);
                 if (params.componentType === 'graphic' || gInfo) {{
                     return {{
                         graphicAction: gInfo,
@@ -1127,8 +1473,8 @@ def main():
 
                 var gridLeft = 35;
                 var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
-                var gridTop = 55;
-                var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - 48;
+                var gridTop = {grid_top};
+                var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - {grid_bottom};
 
                 if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
                     return {{
