@@ -81,8 +81,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         })
 
     room_records = rooms[~rooms.Room_ID.isin([1, 15])]
-    room_boxes = []
-    room_labels = []
+    rooms_data = []
 
     for row in room_records.itertuples(index=False):
         room_id = int(row.Room_ID)
@@ -90,19 +89,21 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
 
         layout = room_label_layout(room_id, graph, positions)
         text = wrap_label(str(row.Room_Name))
+        lines = text.split("\n")
+        text_w = max(len(l) for l in lines) * 4.9 + 2.0
+        text_h = len(lines) * 10.5
 
-        room_boxes.append({
-            "id": f"room_box_{room_id}",
-            "value": [x, y],
-            "roomId": room_id,
-            "name": row.Room_Name
-        })
-
-        room_labels.append({
-            "id": f"room_label_{room_id}",
+        rooms_data.append({
+            "id": f"room_{room_id}",
             "value": [x, y],
             "roomId": room_id,
             "name": row.Room_Name,
+            "textW": text_w,
+            "textH": text_h,
+            "layoutPos": layout["position"],
+            "layoutDist": layout["distance"],
+            "layoutOffset": layout["offset"],
+            "labelText": text,
             "label": {
                 "show": True,
                 "formatter": text,
@@ -115,6 +116,16 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
                 "lineHeight": 10
             }
         })
+
+    def priority(r):
+        name = str(r["name"]).lower()
+        if any(k in name for k in ["audi", "waiting", "dsw", "office", "entry", "hall"]):
+            return 0
+        if any(k in name for k in ["lab", "discussion", "stair", "lift"]):
+            return 1
+        return 2
+
+    rooms_data.sort(key=priority)
 
     gate_boxes = [
         {
@@ -179,7 +190,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         "max_y": max(all_y) + y_pad
     }
 
-    return base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds
+    return base_lines, rooms_data, gate_boxes, gate_labels, bounds
 
 
 def is_mobile_device():
@@ -448,8 +459,62 @@ def room_label_layout(room_id, graph, positions):
     return {"position": pos, "distance": 8, "offset": [0, 0]}
 
 
+def get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r):
+    px = (r["value"][0] - cur_min_x) * scale_x
+    py = (r["value"][1] - cur_min_y) * scale_y
+
+    bx1, bx2 = px - box_r, px + box_r
+    by1, by2 = py - box_r, py + box_r
+
+    tw = r["textW"]
+    th = r["textH"]
+    pos = r["layoutPos"]
+    dist = r["layoutDist"]
+    ox, oy = r["layoutOffset"]
+
+    if pos == "top":
+        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
+        ly1, ly2 = py + box_r + dist, py + box_r + dist + th
+    elif pos == "bottom":
+        lx1, lx2 = px - tw / 2.0 + ox, px + tw / 2.0 + ox
+        ly1, ly2 = py - box_r - dist - th, py - box_r - dist
+    elif pos == "left":
+        lx1, lx2 = px - box_r - dist - tw, px - box_r - dist
+        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+    else:
+        lx1, lx2 = px + box_r + dist, px + box_r + dist + tw
+        ly1, ly2 = py - th / 2.0 + oy, py + th / 2.0 + oy
+
+    return (
+        min(bx1, lx1) - 1.0,
+        max(bx2, lx2) + 1.0,
+        min(by1, ly1) - 1.0,
+        max(by2, ly2) + 1.0,
+    )
+
+
+def get_marker_bbox(pt, name, scale_x, scale_y, cur_min_x, cur_min_y, marker_r):
+    px = (pt[0] - cur_min_x) * scale_x
+    py = (pt[1] - cur_min_y) * scale_y
+    lines = name.split("\n")
+    tw = max(len(l) for l in lines) * 4.9 + 8.0
+    th = len(lines) * 11.0 + 4.0
+    lx1, lx2 = px - tw / 2.0, px + tw / 2.0
+    ly1, ly2 = py + marker_r + 5.0, py + marker_r + 5.0 + th
+    return (
+        min(px - marker_r, lx1) - 1.0,
+        max(px + marker_r, lx2) + 1.0,
+        min(py - marker_r, ly1) - 1.0,
+        max(py + marker_r, ly2) + 1.0,
+    )
+
+
+def boxes_overlap(b1, b2):
+    return b1[0] < b2[1] and b1[1] > b2[0] and b1[2] < b2[3] and b1[3] > b2[2]
+
+
 def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
-    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
+    base_lines, rooms_data, gate_boxes, gate_labels, bounds = static_map_data
 
     is_mobile = is_mobile_device()
     show_all = st.session_state.get("show_all", False)
@@ -474,7 +539,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     zoom_y_start = mz[1]["start"] if mz and len(mz) > 1 and "start" in mz[1] else 0
     zoom_y_end = mz[1]["end"] if mz and len(mz) > 1 and "end" in mz[1] else 100
 
-    name_lookup = {r["roomId"]: r["name"] for r in room_boxes}
+    name_lookup = {r["roomId"]: r["name"] for r in rooms_data}
     name_lookup[1] = "Front Gate"
     name_lookup[15] = "Back Gate"
 
@@ -484,17 +549,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     if str(destination).isdigit():
         selected_ids.add(int(destination))
 
-    marker_pts = []
-    if origin == "Custom" and st.session_state.get("custom_origin"):
-        marker_pts.append(st.session_state.custom_origin["point"])
-    elif str(origin).isdigit() and int(origin) in positions:
-        marker_pts.append(positions[int(origin)])
-    if str(destination).isdigit() and int(destination) in positions:
-        marker_pts.append(positions[int(destination)])
-
     if show_all:
-        visible_boxes = room_boxes
-        visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
+        visible_rooms = [r for r in rooms_data if r.get("roomId") not in selected_ids]
     else:
         grid_w = (350 if is_mobile else 800) - 70
         grid_h = (300 if is_mobile else 600) - 85
@@ -508,43 +564,41 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         scale_x = grid_w / max(cur_max_x - cur_min_x, 1e-5)
         scale_y = grid_h / max(cur_max_y - cur_min_y, 1e-5)
 
-        min_dist = 18.0 if is_mobile else 22.0
-        min_dist_sq = min_dist * min_dist
+        kept_boxes = []
+        kept_ids = set()
 
-        kept_ids = set(selected_ids)
-        kept_pts = []
+        if origin == "Custom" and st.session_state.get("custom_origin"):
+            m_pt = st.session_state.custom_origin["point"]
+            kept_boxes.append(get_marker_bbox(m_pt, "Custom Start", scale_x, scale_y, cur_min_x, cur_min_y, marker_orig_size / 2.0))
+        elif str(origin).isdigit() and int(origin) in positions:
+            m_pt = positions[int(origin)]
+            m_name = wrap_label(str(name_lookup.get(int(origin), f"Room {origin}")))
+            kept_boxes.append(get_marker_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_min_y, marker_orig_size / 2.0))
 
-        for mx, my in marker_pts:
-            px = (mx - cur_min_x) * scale_x
-            py = (my - cur_min_y) * scale_y
-            kept_pts.append((px, py))
+        if str(destination).isdigit() and int(destination) in positions:
+            m_pt = positions[int(destination)]
+            m_name = wrap_label(str(name_lookup.get(int(destination), f"Room {destination}")))
+            kept_boxes.append(get_marker_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_min_y, marker_dest_size / 2.0))
 
-        for b in room_boxes:
-            rid = b["roomId"]
-            if rid in kept_ids:
-                px = (b["value"][0] - cur_min_x) * scale_x
-                py = (b["value"][1] - cur_min_y) * scale_y
-                kept_pts.append((px, py))
-
-        for b in room_boxes:
-            rid = b["roomId"]
-            if rid in kept_ids:
+        box_r = room_size / 2.0
+        for r in rooms_data:
+            rid = r["roomId"]
+            if rid in selected_ids:
                 continue
-            px = (b["value"][0] - cur_min_x) * scale_x
-            py = (b["value"][1] - cur_min_y) * scale_y
+
+            r_bbox = get_room_bbox(r, scale_x, scale_y, cur_min_x, cur_min_y, box_r)
 
             collides = False
-            for kx, ky in kept_pts:
-                if (px - kx) ** 2 + (py - ky) ** 2 < min_dist_sq:
+            for kb in kept_boxes:
+                if boxes_overlap(r_bbox, kb):
                     collides = True
                     break
 
             if not collides:
                 kept_ids.add(rid)
-                kept_pts.append((px, py))
+                kept_boxes.append(r_bbox)
 
-        visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
-        visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
+        visible_rooms = [r for r in rooms_data if r["roomId"] in kept_ids]
 
     visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
 
@@ -582,24 +636,10 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "borderWidth": 1
             },
             "clip": True,
-            "data": visible_boxes,
-            "cursor": cursor_style,
-            "z": 20
-        },
-        {
-            "name": "Room names",
-            "type": "scatter",
-            "symbol": "rect",
-            "symbolSize": 0,
-            "clip": True,
-            "itemStyle": {"color": "#2f8fbd"},
-            "labelLayout": {
-                "hideOverlap": True
-            },
-            "data": visible_labels,
+            "data": visible_rooms,
             "cursor": cursor_style,
             "silent": is_silent,
-            "z": 21
+            "z": 20
         },
         {
             "name": "Gates",
@@ -613,7 +653,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "data": gate_boxes,
             "cursor": cursor_style,
-            "z": 20
+            "z": 21
         },
         {
             "name": "Gate names",
@@ -622,9 +662,6 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "symbolSize": 0,
             "clip": True,
             "itemStyle": {"color": "#202a2e"},
-            "labelLayout": {
-                "hideOverlap": True
-            },
             "data": visible_gate_labels,
             "cursor": cursor_style,
             "silent": is_silent,
@@ -742,9 +779,6 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "type": "scatter",
         "data": marker_data,
         "clip": True,
-        "labelLayout": {
-            "hideOverlap": True
-        },
         "z": 35,
         "cursor": cursor_style,
         "silent": True,
@@ -764,14 +798,14 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     dest_label = "Destination: Active" if dest_active else "Set Destination"
 
     btn_h = 22 if is_mobile else 25
-    btn_clear_w = 68 if is_mobile else 76
     btn_start_w = 76 if is_mobile else 84
     btn_dest_w = 98 if is_mobile else 112
+    btn_clear_w = 68 if is_mobile else 76
     gap = 5 if is_mobile else 6
     btn_font = f"600 {9 if is_mobile else 10}px sans-serif"
     btn_top = 8 if is_mobile else 10
 
-    total_w = btn_clear_w + gap + btn_start_w + gap + btn_dest_w
+    total_w = btn_start_w + gap + btn_dest_w + gap + btn_clear_w
 
     show_all_bg = "#2ca25f" if show_all else "#ffffff"
     show_all_border = "#2ca25f" if show_all else "#b0bec5"
@@ -792,49 +826,6 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 {
                     "type": "group",
                     "left": 0,
-                    "top": 0,
-                    "width": btn_clear_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "clear_path",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {
-                                "width": btn_clear_w,
-                                "height": btn_h,
-                                "r": 4
-                            },
-                            "style": {
-                                "fill": "#ffffff",
-                                "stroke": "#e63946",
-                                "lineWidth": 1.2,
-                                "shadowBlur": 3,
-                                "shadowColor": "rgba(0,0,0,0.1)",
-                                "shadowOffsetY": 1
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": "Clear Path",
-                                "fill": "#e63946",
-                                "font": btn_font
-                            },
-                            "cursor": "pointer",
-                            "info": "clear_path"
-                        }
-                    ]
-                },
-                {
-                    "type": "group",
-                    "left": btn_clear_w + gap,
                     "top": 0,
                     "width": btn_start_w,
                     "height": btn_h,
@@ -877,7 +868,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 },
                 {
                     "type": "group",
-                    "left": btn_clear_w + gap + btn_start_w + gap,
+                    "left": btn_start_w + gap,
                     "top": 0,
                     "width": btn_dest_w,
                     "height": btn_h,
@@ -915,6 +906,49 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                             },
                             "cursor": "pointer",
                             "info": "toggle_dest"
+                        }
+                    ]
+                },
+                {
+                    "type": "group",
+                    "left": btn_start_w + gap + btn_dest_w + gap,
+                    "top": 0,
+                    "width": btn_clear_w,
+                    "height": btn_h,
+                    "cursor": "pointer",
+                    "info": "clear_path",
+                    "children": [
+                        {
+                            "type": "rect",
+                            "left": "center",
+                            "top": "middle",
+                            "shape": {
+                                "width": btn_clear_w,
+                                "height": btn_h,
+                                "r": 4
+                            },
+                            "style": {
+                                "fill": "#ffffff",
+                                "stroke": "#e63946",
+                                "lineWidth": 1.2,
+                                "shadowBlur": 3,
+                                "shadowColor": "rgba(0,0,0,0.1)",
+                                "shadowOffsetY": 1
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
+                        },
+                        {
+                            "type": "text",
+                            "left": "center",
+                            "top": "middle",
+                            "style": {
+                                "text": "Clear Path",
+                                "fill": "#e63946",
+                                "font": btn_font
+                            },
+                            "cursor": "pointer",
+                            "info": "clear_path"
                         }
                     ]
                 }
@@ -974,7 +1008,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "backgroundColor": "#fbfaf6",
         "graphic": graphic_buttons,
         "grid": {
-            "show": True,
+            "show": False,
             "borderColor": "#b0bec5",
             "borderWidth": 1.5,
             "left": 35,
@@ -985,7 +1019,6 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         "legend": {
             "data": [
                 "Rooms",
-                "Room names",
                 "Gates",
                 "Gate names"
             ],
@@ -1132,11 +1165,18 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
             pos_u = positions[u]
             pos_v = positions[v]
             snapped_x, snapped_y = project_point_on_segment(click_pt, pos_u, pos_v)
-            st.session_state.custom_origin = {
-                "point": (snapped_x, snapped_y),
-                "edge": (u, v)
-            }
-            st.session_state.origin = "Custom"
+
+            dist, idx = room_tree.query((snapped_x, snapped_y))
+            if dist <= 2.0:
+                st.session_state.origin = int(room_ids[idx])
+                st.session_state.custom_origin = None
+            else:
+                st.session_state.custom_origin = {
+                    "point": (snapped_x, snapped_y),
+                    "edge": (u, v)
+                }
+                st.session_state.origin = "Custom"
+
             st.session_state.click_target = "destination"
             return True
         elif click_pt:
@@ -1359,7 +1399,7 @@ def main():
         static_map_data = build_static_map_data(graph, positions, rooms)
         options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
-        _, all_boxes, all_labels, _, _, bounds = static_map_data
+        _, all_rooms, _, _, bounds = static_map_data
         min_x = bounds["min_x"]
         max_x = bounds["max_x"]
         min_y = bounds["min_y"]
@@ -1371,18 +1411,19 @@ def main():
         if str(destination).isdigit():
             selected_ids.append(int(destination))
 
-        marker_pts = []
+        marker_items = []
         if origin == "Custom" and st.session_state.get("custom_origin"):
-            marker_pts.append(st.session_state.custom_origin["point"])
+            marker_items.append({"pt": st.session_state.custom_origin["point"], "name": "Custom Start", "r": 3.5 if is_mobile_device() else 5.0})
         elif str(origin).isdigit() and int(origin) in positions:
-            marker_pts.append(positions[int(origin)])
+            m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(origin), "Room_Name"].values[0] if (rooms["Room_ID"] == int(origin)).any() else f"Room {origin}"))
+            marker_items.append({"pt": positions[int(origin)], "name": m_name, "r": 3.5 if is_mobile_device() else 5.0})
         if str(destination).isdigit() and int(destination) in positions:
-            marker_pts.append(positions[int(destination)])
+            m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(destination), "Room_Name"].values[0] if (rooms["Room_ID"] == int(destination)).any() else f"Room {destination}"))
+            marker_items.append({"pt": positions[int(destination)], "name": m_name, "r": 4.5 if is_mobile_device() else 6.5})
 
-        boxes_json = json.dumps(all_boxes)
-        labels_json = json.dumps(all_labels)
+        rooms_json = json.dumps(all_rooms)
         selected_ids_json = json.dumps(selected_ids)
-        marker_pts_json = json.dumps(marker_pts)
+        marker_items_json = json.dumps(marker_items)
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
         grid_top = 38 if is_mobile_device() else 42
@@ -1401,8 +1442,7 @@ def main():
 
                 var isShowAll = {show_all_val};
                 if (!isShowAll) {{
-                    window._masterBoxes = window._masterBoxes || {boxes_json};
-                    window._masterLabels = window._masterLabels || {labels_json};
+                    window._masterRooms = window._masterRooms || {rooms_json};
 
                     var zx = window._mapZoom[0];
                     var zy = window._mapZoom[1];
@@ -1420,45 +1460,70 @@ def main():
                     var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
 
                     var isMob = {"true" if is_mobile_device() else "false"};
-                    var minDist = isMob ? 18.0 : 22.0;
-                    var minDistSq = minDist * minDist;
+                    var boxR = (isMob ? 4.5 : 8.0) / 2.0;
+
+                    function getBBox(r) {{
+                        var px = (r.value[0] - curMinX) * scaleX;
+                        var py = (r.value[1] - curMinY) * scaleY;
+                        var bx1 = px - boxR, bx2 = px + boxR;
+                        var by1 = py - boxR, by2 = py + boxR;
+                        var tw = r.textW || 24, th = r.textH || 10;
+                        var pos = r.layoutPos || "top", dist = r.layoutDist || 8;
+                        var ox = (r.layoutOffset && r.layoutOffset[0]) || 0;
+                        var oy = (r.layoutOffset && r.layoutOffset[1]) || 0;
+                        var lx1, lx2, ly1, ly2;
+                        if (pos === "top") {{
+                            lx1 = px - tw / 2 + ox; lx2 = px + tw / 2 + ox;
+                            ly1 = py + boxR + dist; ly2 = py + boxR + dist + th;
+                        }} else if (pos === "bottom") {{
+                            lx1 = px - tw / 2 + ox; lx2 = px + tw / 2 + ox;
+                            ly1 = py - boxR - dist - th; ly2 = py - boxR - dist;
+                        }} else if (pos === "left") {{
+                            lx1 = px - boxR - dist - tw; lx2 = px - boxR - dist;
+                            ly1 = py - th / 2 + oy; ly2 = py + th / 2 + oy;
+                        }} else {{
+                            lx1 = px + boxR + dist; lx2 = px + boxR + dist + tw;
+                            ly1 = py - th / 2 + oy; ly2 = py + th / 2 + oy;
+                        }}
+                        return [Math.min(bx1, lx1) - 1, Math.max(bx2, lx2) + 1, Math.min(by1, ly1) - 1, Math.max(by2, ly2) + 1];
+                    }}
+
+                    function getMarkerBBox(m) {{
+                        var px = (m.pt[0] - curMinX) * scaleX;
+                        var py = (m.pt[1] - curMinY) * scaleY;
+                        var mr = m.r;
+                        var lines = (m.name || "").split("\\n");
+                        var maxL = 0;
+                        for (var i = 0; i < lines.length; i++) {{ if (lines[i].length > maxL) maxL = lines[i].length; }}
+                        var tw = maxL * 4.9 + 8;
+                        var th = lines.length * 11 + 4;
+                        var lx1 = px - tw / 2, lx2 = px + tw / 2;
+                        var ly1 = py + mr + 5, ly2 = py + mr + 5 + th;
+                        return [Math.min(px - mr, lx1) - 1, Math.max(px + mr, lx2) + 1, Math.min(py - mr, ly1) - 1, Math.max(py + mr, ly2) + 1];
+                    }}
+
+                    function isOverlap(a, b) {{
+                        return a[0] < b[1] && a[1] > b[0] && a[2] < b[3] && a[3] > b[2];
+                    }}
+
+                    var keptBoxes = [];
+                    var mItems = {marker_items_json};
+                    for (var mi = 0; mi < mItems.length; mi++) {{
+                        keptBoxes.push(getMarkerBBox(mItems[mi]));
+                    }}
 
                     var selIds = {selected_ids_json};
-                    var mPts = {marker_pts_json};
                     var kept = {{}};
-                    var keptPts = [];
+                    var mRooms = window._masterRooms || [];
 
-                    for (var s = 0; s < selIds.length; s++) {{
-                        kept[selIds[s]] = true;
-                    }}
+                    for (var i = 0; i < mRooms.length; i++) {{
+                        var rid = mRooms[i].roomId;
+                        if (selIds.indexOf(rid) !== -1) continue;
 
-                    for (var m = 0; m < mPts.length; m++) {{
-                        var px = (mPts[m][0] - curMinX) * scaleX;
-                        var py = (mPts[m][1] - curMinY) * scaleY;
-                        keptPts.push([px, py]);
-                    }}
-
-                    var mBoxes = window._masterBoxes || [];
-                    for (var i = 0; i < mBoxes.length; i++) {{
-                        var rid = mBoxes[i].roomId;
-                        if (kept[rid]) {{
-                            var px = (mBoxes[i].value[0] - curMinX) * scaleX;
-                            var py = (mBoxes[i].value[1] - curMinY) * scaleY;
-                            keptPts.push([px, py]);
-                        }}
-                    }}
-
-                    for (var i = 0; i < mBoxes.length; i++) {{
-                        var rid = mBoxes[i].roomId;
-                        if (kept[rid]) continue;
-                        var px = (mBoxes[i].value[0] - curMinX) * scaleX;
-                        var py = (mBoxes[i].value[1] - curMinY) * scaleY;
-
+                        var bb = getBBox(mRooms[i]);
                         var collides = false;
-                        for (var k = 0; k < keptPts.length; k++) {{
-                            var dx = px - keptPts[k][0];
-                            var dy = py - keptPts[k][1];
-                            if (dx * dx + dy * dy < minDistSq) {{
+                        for (var k = 0; k < keptBoxes.length; k++) {{
+                            if (isOverlap(bb, keptBoxes[k])) {{
                                 collides = true;
                                 break;
                             }}
@@ -1466,21 +1531,19 @@ def main():
 
                         if (!collides) {{
                             kept[rid] = true;
-                            keptPts.push([px, py]);
+                            keptBoxes.push(bb);
                         }}
                     }}
 
                     var chart = dom ? echarts.getInstanceByDom(dom) : null;
-                    if (chart && window._masterLabels) {{
-                        var fb = mBoxes.filter(function(r) {{ return kept[r.roomId]; }});
-                        var fl = window._masterLabels.filter(function(r) {{
-                            return kept[r.roomId] && selIds.indexOf(r.roomId) === -1;
+                    if (chart) {{
+                        var fb = mRooms.filter(function(r) {{
+                            return kept[r.roomId];
                         }});
                         chart.setOption({{
                             series: [
                                 {{ name: "Walkable path" }},
-                                {{ name: "Rooms", data: fb }},
-                                {{ name: "Room names", data: fl }}
+                                {{ name: "Rooms", data: fb }}
                             ]
                         }});
                     }}
