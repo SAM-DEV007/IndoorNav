@@ -1417,6 +1417,9 @@ def main():
     if "map_zoom" not in st.session_state:
         st.session_state.map_zoom = None
 
+    if "positions" not in st.session_state:
+        st.session_state.positions = positions
+
     if "origin" not in st.session_state:
         st.session_state.origin = "-"
 
