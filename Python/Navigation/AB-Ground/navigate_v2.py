@@ -1240,7 +1240,7 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
             {"start": 0.0, "end": 100.0},
             {"start": 0.0, "end": 100.0}
         ]
-        st.session_state.last_focus_key = 'RESET'
+        st.session_state.last_focus_key = "RESET"
         return True
     elif action == "clear_path":
         st.session_state.origin = "-"
@@ -1585,8 +1585,11 @@ def main():
         grid_bottom = 50 if is_mobile_device() else 38
 
         filter_fn_body = f"""
+            if (typeof window._mapZoomReset === 'undefined') {{
+                window._mapZoomReset = false;
+            }}
+
             var isShowAll = {show_all_val};
-            if (isShowAll) return;
 
             window._masterBoxes = {boxes_json};
             window._masterLabels = {labels_json};
@@ -1595,11 +1598,35 @@ def main():
             var chart = dom ? echarts.getInstanceByDom(dom) : null;
             if (!chart) return;
 
-            var opt = chart.getOption();
-            var dz = (opt && opt.dataZoom) ? opt.dataZoom : null;
-            var zx = (dz && dz[0]) ? dz[0] : ((window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}});
-            var zy = (dz && dz[1]) ? dz[1] : ((window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}});
-            window._mapZoom = [{{start: zx.start, end: zx.end}}, {{start: zy.start, end: zy.end}}];
+            var zx, zy;
+
+            if (window._mapZoomReset) {{
+                zx = {{start: 0, end: 100}};
+                zy = {{start: 0, end: 100}};
+
+                window._mapZoom = [zx, zy];
+
+                window._mapZoomReset = false;
+            }} else {{
+                var opt = chart.getOption();
+                var dz = (opt && opt.dataZoom) ? opt.dataZoom : null;
+
+                zx = (dz && dz[0])
+                    ? {{start: dz[0].start, end: dz[0].end}}
+                    : ((window._mapZoom && window._mapZoom[0])
+                        ? window._mapZoom[0]
+                        : {{start: 0, end: 100}});
+
+                zy = (dz && dz[1])
+                    ? {{start: dz[1].start, end: dz[1].end}}
+                    : ((window._mapZoom && window._mapZoom[1])
+                        ? window._mapZoom[1]
+                        : {{start: 0, end: 100}});
+
+                window._mapZoom = [zx, zy];
+            }}
+
+            if (isShowAll) return;
 
             var w = (dom.clientWidth || 1150) - 70;
             var h = (dom.clientHeight || 650) - {grid_top + grid_bottom};
@@ -1763,6 +1790,33 @@ def main():
                 if (params.componentType === 'graphic' || gInfo) {{
                     if (gInfo === 'clear_path') {{
                         window._lastProcessedZoomKey = null;
+                    }}
+                    if (gInfo === 'reset_zoom') {{
+                        const resetZoom = [
+                            {{start: 0, end: 100}},
+                            {{start: 0, end: 100}}
+                        ];
+
+                        window._mapZoomReset = true;
+                        window._mapZoom = resetZoom;
+
+                        chart.dispatchAction({{
+                            type: 'dataZoom',
+                            dataZoomIndex: 0,
+                            start: 0,
+                            end: 100
+                        }});
+
+                        chart.dispatchAction({{
+                            type: 'dataZoom',
+                            dataZoomIndex: 1,
+                            start: 0,
+                            end: 100
+                        }});
+
+                        chart.setOption({{
+                            dataZoom: resetZoom
+                        }});
                     }}
                     return {{
                         graphicAction: gInfo,
