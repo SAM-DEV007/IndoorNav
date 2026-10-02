@@ -1527,7 +1527,7 @@ def main():
 
             dest_lbl = room_names.get(destination, room_names.get(int(destination) if str(destination).isdigit() else destination, "Destination"))
 
-            active_positions = st.session_state.get("positions", positions if "positions" in locals() else {})
+            active_positions = st.session_state.positions
 
             directions = generate_directions(
                 path_coords=route_coords,
