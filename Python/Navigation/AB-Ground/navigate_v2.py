@@ -536,6 +536,10 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     is_mobile = is_mobile_device()
     show_all = st.session_state.get("show_all", False)
 
+    room_label_font_size = 6 if is_mobile else 8
+    room_label_line_height = 8 if is_mobile else 10
+    room_label_scale = 0.75 if is_mobile else 1.0
+
     path_width = 5 if is_mobile else 9
     route_width = 3 if is_mobile else 4.5
     room_size = 4.5 if is_mobile else 8
@@ -625,6 +629,17 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
 
     visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
+    visible_labels = [
+        {
+            **label,
+            "label": {
+                **label["label"],
+                "fontSize": room_label_font_size,
+                "lineHeight": room_label_line_height,
+            }
+        }
+        for label in visible_labels
+    ]
 
     click_target = st.session_state.get("click_target")
     is_active = bool(click_target)
@@ -662,7 +677,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
             "clip": True,
             "data": visible_boxes,
             "cursor": cursor_style,
-            "silent": is_silent,
+            "silent": False,
             "z": 20
         },
         {
@@ -1524,13 +1539,15 @@ def main():
             var scaleY = h / Math.max(curMaxY - curMinY, 0.0001);
 
             var isMob = {"true" if is_mobile_device() else "false"};
+            var fontScale = isMob ? 0.75 : 1.0;
             var boxR = (isMob ? 4.5 : 8.0) / 2.0;
 
             function getRoomParts(r) {{
                 var px = 35 + (r.value[0] - curMinX) * scaleX;
                 var py = {grid_top} + (curMaxY - r.value[1]) * scaleY;
                 var bBox = [px - boxR, px + boxR, py - boxR, py + boxR];
-                var tw = r.textW || 18, th = r.textH || 9;
+                var tw = (r.textW || 18) * fontScale;
+                var th = (r.textH || 9) * fontScale;
                 var pos = r.layoutPos || "top", dist = Math.max(2, (r.layoutDist || 8) * 0.4);
                 var ox = (r.layoutOffset && r.layoutOffset[0]) || 0;
                 var oy = (r.layoutOffset && r.layoutOffset[1]) || 0;
