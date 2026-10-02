@@ -553,7 +553,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     min_y = bounds["min_y"]
     max_y = bounds["max_y"]
 
-    mz = st.session_state.get("map_zoom")
+    mz = st.session_state.map_zoom
 
     zoom_x_start = mz[0]["start"] if mz and len(mz) > 0 and "start" in mz[0] else 0
     zoom_x_end = mz[0]["end"] if mz and len(mz) > 0 and "end" in mz[0] else 100
@@ -1240,8 +1240,7 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
             {"start": 0.0, "end": 100.0},
             {"start": 0.0, "end": 100.0}
         ]
-        st.session_state.zoom_reset = True
-        st.session_state.last_focus_key = None
+        st.session_state.last_focus_key = 'RESET'
         return True
     elif action == "clear_path":
         st.session_state.origin = "-"
@@ -1319,7 +1318,6 @@ def handle_map_click(clicked_data, positions, room_ids, room_tree):
 def on_origin_change():
     st.session_state.origin = st.session_state.origin_select
     st.session_state.last_focus_key = None
-    st.session_state.zoom_reset = False
 
     if st.session_state.origin != "-":
         st.session_state.click_target = "destination"
@@ -1328,7 +1326,6 @@ def on_origin_change():
 def on_destination_change():
     st.session_state.destination = st.session_state.destination_select
     st.session_state.last_focus_key = None
-    st.session_state.zoom_reset = False
 
     if st.session_state.destination != "-":
         st.session_state.click_target = None
@@ -1404,9 +1401,6 @@ def main():
 
     if "last_focus_key" not in st.session_state:
         st.session_state.last_focus_key = None
-
-    if "zoom_reset" not in st.session_state:
-        st.session_state.zoom_reset = False
 
     st.session_state.origin_select = st.session_state.origin
     st.session_state.destination_select = st.session_state.destination
@@ -1528,10 +1522,10 @@ def main():
         static_map_data = build_static_map_data(graph, positions, rooms)
         _, all_boxes, all_labels, _, _, bounds = static_map_data
 
-        if (origin not in (None, "-") and destination not in (None, "-") and (str(origin).isdigit() or origin == "Custom") and str(destination).isdigit()):
+        if (origin not in (None, "-") and destination not in (None, "-") and (str(origin).isdigit() or origin == "Custom") and str(destination).isdigit()) and (st.session_state.last_focus_key != 'RESET'):
             focus_key = f"{origin}_{destination}_{len(route_coords) if route_coords else 0}"
 
-            if (st.session_state.zoom_reset is False) and (st.session_state.last_focus_key != focus_key):
+            if st.session_state.last_focus_key != focus_key:
                 if origin == "Custom" and st.session_state.get("custom_origin"):
                     origin_point = st.session_state.custom_origin["point"]
                 elif str(origin).isdigit() and int(origin) in positions:
@@ -1555,9 +1549,6 @@ def main():
                     )
 
                 st.session_state.last_focus_key = focus_key
-                st.session_state.zoom_reset = False
-            else:
-                st.session_state.zoom_reset = False
         else:
             st.session_state.last_focus_key = None
 
