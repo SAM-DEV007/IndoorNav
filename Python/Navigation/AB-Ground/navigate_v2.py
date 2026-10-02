@@ -1021,7 +1021,6 @@ def main():
 
             dest_lbl = labels.get(destination, labels.get(int(destination) if str(destination).isdigit() else destination, "Destination"))
 
-            active_rooms = st.session_state.get("rooms", rooms if "rooms" in locals() else [])
             active_positions = st.session_state.get("positions", positions if "positions" in locals() else {})
 
             directions = generate_directions(
