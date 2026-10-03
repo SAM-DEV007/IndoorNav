@@ -573,11 +573,114 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     grid_top = 34 if is_mobile else 38
     grid_bottom = 50 if is_mobile else 38
 
-    visible_boxes = room_boxes
-    visible_labels = [
-        r for r in room_labels
-        if r.get("roomId") not in selected_ids
-    ]
+    if show_all:
+        visible_boxes = room_boxes
+        visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
+    else:
+        chart_w = st.session_state.get("chart_width") or (375.0 if is_mobile else 1150.0)
+        chart_h = st.session_state.get("chart_height") or (350.0 if is_mobile else 650.0)
+        grid_w = chart_w - 70.0
+        grid_h = chart_h - (grid_top + grid_bottom)
+        span_x = max_x - min_x
+        span_y = max_y - min_y
+        cur_min_x = min_x + span_x * (zoom_x_start / 100.0)
+        cur_max_x = min_x + span_x * (zoom_x_end / 100.0)
+        cur_min_y = min_y + span_y * (zoom_y_start / 100.0)
+        cur_max_y = min_y + span_y * (zoom_y_end / 100.0)
+
+        scale_x = grid_w / max(cur_max_x - cur_min_x, 1e-5)
+        scale_y = grid_h / max(cur_max_y - cur_min_y, 1e-5)
+
+        CELL_SIZE = 50.0
+        collision_grid = {}
+
+        def _get_boxes(parts):
+            if isinstance(parts, dict):
+                return [parts["box"], parts["label"]]
+            if isinstance(parts, (list, tuple)) and len(parts) == 2:
+                return [parts[0], parts[1]]
+            return [parts.box, parts.label]
+
+        def add_to_collision_grid(grid, parts):
+            for b in _get_boxes(parts):
+                min_gx = int(math.floor(b[0] / CELL_SIZE))
+                max_gx = int(math.floor(b[1] / CELL_SIZE))
+                min_gy = int(math.floor(b[2] / CELL_SIZE))
+                max_gy = int(math.floor(b[3] / CELL_SIZE))
+
+                for gx in range(min_gx, max_gx + 1):
+                    for gy in range(min_gy, max_gy + 1):
+                        key = (gx, gy)
+                        if key not in grid:
+                            grid[key] = []
+                        grid[key].append(parts)
+
+        def get_nearby_collision_parts(grid, parts):
+            result = []
+            seen = set()
+
+            for b in _get_boxes(parts):
+                min_gx = int(math.floor(b[0] / CELL_SIZE)) - 1
+                max_gx = int(math.floor(b[1] / CELL_SIZE)) + 1
+                min_gy = int(math.floor(b[2] / CELL_SIZE)) - 1
+                max_gy = int(math.floor(b[3] / CELL_SIZE)) + 1
+
+                for gx in range(min_gx, max_gx + 1):
+                    for gy in range(min_gy, max_gy + 1):
+                        candidates = grid.get((gx, gy))
+                        if not candidates:
+                            continue
+                        for cand in candidates:
+                            cand_id = id(cand)
+                            if cand_id not in seen:
+                                seen.add(cand_id)
+                                result.append(cand)
+            return result
+
+        kept_parts = []
+        kept_ids = set()
+
+        if origin == "Custom" and st.session_state.get("custom_origin"):
+            m_pt = st.session_state.custom_origin["point"]
+            p = get_marker_parts_bbox(m_pt, "Custom Start", scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top)
+            kept_parts.append(p)
+            add_to_collision_grid(collision_grid, p)
+        elif str(origin).isdigit() and int(origin) in positions:
+            m_pt = positions[int(origin)]
+            m_name = wrap_label(str(name_lookup.get(int(origin), f"Room {origin}")))
+            p = get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top)
+            kept_parts.append(p)
+            add_to_collision_grid(collision_grid, p)
+
+        if str(destination).isdigit() and int(destination) in positions:
+            m_pt = positions[int(destination)]
+            m_name = wrap_label(str(name_lookup.get(int(destination), f"Room {destination}")))
+            p = get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_dest_size / 2.0, grid_top)
+            kept_parts.append(p)
+            add_to_collision_grid(collision_grid, p)
+
+        box_r = room_size / 2.0
+        for r in room_boxes:
+            rid = r["roomId"]
+            if rid in selected_ids:
+                continue
+
+            r_parts = get_room_parts_bbox(r, scale_x, scale_y, cur_min_x, cur_max_y, box_r, grid_top)
+            nearby_candidates = get_nearby_collision_parts(collision_grid, r_parts)
+
+            collides = False
+            for kp in nearby_candidates:
+                if room_collides_with(r_parts, kp):
+                    collides = True
+                    break
+
+            if not collides:
+                kept_ids.add(rid)
+                kept_parts.append(r_parts)
+                add_to_collision_grid(collision_grid, r_parts)
+
+        visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
+        visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
 
     visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
     visible_labels = [
