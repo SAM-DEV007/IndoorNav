@@ -1963,9 +1963,7 @@ def main():
 
         events = {
             "finished": f"""function() {{
-                setTimeout(function() {{
-                    {filter_fn_body}
-                }}, 0);
+                {filter_fn_body}
             }}""",
             "datazoom": f"""function(p) {{
                 {filter_fn_body}
