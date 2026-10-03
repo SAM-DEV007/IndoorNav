@@ -1961,6 +1961,130 @@ def main():
             }}
         """
 
+        click_fn_body = f"""
+            function getGraphicInfo(p) {{
+                if (!p) return null;
+                if (p.info) return p.info;
+                var t = p.target;
+                while (t) {{
+                    if (t.info) return t.info;
+                    t = t.parent;
+                }}
+                return null;
+            }}
+
+            var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
+            var w = dom ? dom.clientWidth : null;
+            var h = dom ? dom.clientHeight : null;
+
+            var gInfo = getGraphicInfo(params);
+            if (params.componentType === 'graphic' || gInfo) {{
+                if (gInfo === 'clear_path') {{
+                    window._lastProcessedZoomKey = null;
+                }}
+                if (gInfo === 'reset_zoom') {{
+                    const resetZoom = [
+                        {{start: 0, end: 100}},
+                        {{start: 0, end: 100}}
+                    ];
+
+                    window._mapZoomReset = true;
+                    window._mapZoom = resetZoom;
+
+                    chart.dispatchAction({{
+                        type: 'dataZoom',
+                        dataZoomIndex: 0,
+                        start: 0,
+                        end: 100
+                    }});
+
+                    chart.dispatchAction({{
+                        type: 'dataZoom',
+                        dataZoomIndex: 1,
+                        start: 0,
+                        end: 100
+                    }});
+
+                    chart.setOption({{
+                        dataZoom: resetZoom
+                    }});
+                }}
+                return {{
+                    graphicAction: gInfo,
+                    dataZoom: window._mapZoom || null,
+                    chartWidth: w,
+                    chartHeight: h
+                }};
+            }}
+
+            var pe = params.event || {{}};
+            var nativeEvt = pe.event || pe;
+            var rect = dom ? dom.getBoundingClientRect() : null;
+
+            var touch = (nativeEvt.changedTouches && nativeEvt.changedTouches[0]) ||
+                        (nativeEvt.touches && nativeEvt.touches[0]) ||
+                        nativeEvt;
+
+            var clientX = touch.clientX !== undefined ? touch.clientX : null;
+            var clientY = touch.clientY !== undefined ? touch.clientY : null;
+
+            var px = (pe.zrX !== undefined) ? pe.zrX : (
+                    (pe.offsetX !== undefined) ? pe.offsetX : (
+                    (rect && clientX !== null) ? clientX - rect.left : null));
+
+            var py = (pe.zrY !== undefined) ? pe.zrY : (
+                    (pe.offsetY !== undefined) ? pe.offsetY : (
+                    (rect && clientY !== null) ? clientY - rect.top : null));
+
+            var gridLeft = 35;
+            var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
+            var gridTop = {grid_top};
+            var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - {grid_bottom};
+
+            if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
+                return {{
+                    roomId: null,
+                    value: null,
+                    coords: null,
+                    edge: null,
+                    clickCoord: null,
+                    dataZoom: window._mapZoom || null,
+                    chartWidth: w,
+                    chartHeight: h
+                }};
+            }}
+
+            var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
+            var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
+
+            var minX = {min_x}, maxX = {max_x};
+            var minY = {min_y}, maxY = {max_y};
+
+            var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
+            var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
+            var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
+            var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
+
+            var normX = (px - gridLeft) / (gridRight - gridLeft);
+            var normY = (gridBottom - py) / (gridBottom - gridTop);
+
+            var clickPt = [
+                curMinX + normX * (curMaxX - curMinX),
+                curMinY + normY * (curMaxY - curMinY)
+            ];
+
+            return {{
+                roomId: params.data ? params.data.roomId : null,
+                value: params.value,
+                coords: (params.data && params.data.coords) ? params.data.coords : null,
+                edge: (params.data && params.data.edge) ? params.data.edge : null,
+                clickCoord: clickPt,
+                dataZoom: window._mapZoom || null,
+                chartWidth: w,
+                chartHeight: h
+            }};
+        """
+
         events = {
             "finished": f"""function() {{
                 {filter_fn_body}
@@ -1969,127 +2093,7 @@ def main():
                 {filter_fn_body}
             }}""",
             "click": f"""function(params) {{
-                function getGraphicInfo(p) {{
-                    if (!p) return null;
-                    if (p.info) return p.info;
-                    var t = p.target;
-                    while (t) {{
-                        if (t.info) return t.info;
-                        t = t.parent;
-                    }}
-                    return null;
-                }}
-
-                var dom = document.querySelector('div[_echarts_instance_]') || document.querySelector('.echarts-for-react');
-                var w = dom ? dom.clientWidth : null;
-                var h = dom ? dom.clientHeight : null;
-
-                var gInfo = getGraphicInfo(params);
-                if (params.componentType === 'graphic' || gInfo) {{
-                    if (gInfo === 'clear_path') {{
-                        window._lastProcessedZoomKey = null;
-                    }}
-                    if (gInfo === 'reset_zoom') {{
-                        const resetZoom = [
-                            {{start: 0, end: 100}},
-                            {{start: 0, end: 100}}
-                        ];
-
-                        window._mapZoomReset = true;
-                        window._mapZoom = resetZoom;
-
-                        chart.dispatchAction({{
-                            type: 'dataZoom',
-                            dataZoomIndex: 0,
-                            start: 0,
-                            end: 100
-                        }});
-
-                        chart.dispatchAction({{
-                            type: 'dataZoom',
-                            dataZoomIndex: 1,
-                            start: 0,
-                            end: 100
-                        }});
-
-                        chart.setOption({{
-                            dataZoom: resetZoom
-                        }});
-                    }}
-                    return {{
-                        graphicAction: gInfo,
-                        dataZoom: window._mapZoom || null,
-                        chartWidth: w,
-                        chartHeight: h
-                    }};
-                }}
-
-                var pe = params.event || {{}};
-                var nativeEvt = pe.event || pe;
-                var rect = dom ? dom.getBoundingClientRect() : null;
-
-                var touch = (nativeEvt.changedTouches && nativeEvt.changedTouches[0]) ||
-                            (nativeEvt.touches && nativeEvt.touches[0]) ||
-                            nativeEvt;
-
-                var clientX = touch.clientX !== undefined ? touch.clientX : null;
-                var clientY = touch.clientY !== undefined ? touch.clientY : null;
-
-                var px = (pe.zrX !== undefined) ? pe.zrX : (
-                        (pe.offsetX !== undefined) ? pe.offsetX : (
-                        (rect && clientX !== null) ? clientX - rect.left : null));
-
-                var py = (pe.zrY !== undefined) ? pe.zrY : (
-                        (pe.offsetY !== undefined) ? pe.offsetY : (
-                        (rect && clientY !== null) ? clientY - rect.top : null));
-
-                var gridLeft = 35;
-                var gridRight = (dom.clientWidth || (rect ? rect.width : 0)) - 35;
-                var gridTop = {grid_top};
-                var gridBottom = (dom.clientHeight || (rect ? rect.height : 0)) - {grid_bottom};
-
-                if (px === null || py === null || px < gridLeft || px > gridRight || py < gridTop || py > gridBottom) {{
-                    return {{
-                        roomId: null,
-                        value: null,
-                        coords: null,
-                        edge: null,
-                        clickCoord: null,
-                        dataZoom: window._mapZoom || null,
-                        chartWidth: w,
-                        chartHeight: h
-                    }};
-                }}
-
-                var zx = (window._mapZoom && window._mapZoom[0]) ? window._mapZoom[0] : {{start: 0, end: 100}};
-                var zy = (window._mapZoom && window._mapZoom[1]) ? window._mapZoom[1] : {{start: 0, end: 100}};
-
-                var minX = {min_x}, maxX = {max_x};
-                var minY = {min_y}, maxY = {max_y};
-
-                var curMinX = minX + (maxX - minX) * (zx.start / 100.0);
-                var curMaxX = minX + (maxX - minX) * (zx.end / 100.0);
-                var curMinY = minY + (maxY - minY) * (zy.start / 100.0);
-                var curMaxY = minY + (maxY - minY) * (zy.end / 100.0);
-
-                var normX = (px - gridLeft) / (gridRight - gridLeft);
-                var normY = (gridBottom - py) / (gridBottom - gridTop);
-
-                var clickPt = [
-                    curMinX + normX * (curMaxX - curMinX),
-                    curMinY + normY * (curMaxY - curMinY)
-                ];
-
-                return {{
-                    roomId: params.data ? params.data.roomId : null,
-                    value: params.value,
-                    coords: (params.data && params.data.coords) ? params.data.coords : null,
-                    edge: (params.data && params.data.edge) ? params.data.edge : null,
-                    clickCoord: clickPt,
-                    dataZoom: window._mapZoom || null,
-                    chartWidth: w,
-                    chartHeight: h
-                }};
+                {click_fn_body}
             }}"""
         }
 
