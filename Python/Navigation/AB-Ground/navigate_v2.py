@@ -538,7 +538,6 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
 
     room_label_font_size = 6 if is_mobile else 8
     room_label_line_height = 8 if is_mobile else 10
-    room_label_scale = 0.75 if is_mobile else 1.0
 
     path_width = 5 if is_mobile else 9
     route_width = 3 if is_mobile else 4.5
@@ -571,7 +570,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         selected_ids.add(int(destination))
 
     grid_top = 34 if is_mobile else 38
-    grid_bottom = 50 if is_mobile else 38
+    grid_bottom = 50
 
     if show_all:
         visible_boxes = room_boxes
@@ -911,13 +910,18 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     btn_h = 17 if is_mobile else 22
     btn_start_w = 55 if is_mobile else 70
     btn_dest_w = 85 if is_mobile else 100
-    btn_clear_w = 60 if is_mobile else 70
     btn_reset_w = 65 if is_mobile else 75
+    btn_clear_w = 60 if is_mobile else 70
     gap = 4 if is_mobile else 6
+    section_gap = 8 if is_mobile else 14
     btn_font = f"600 {8 if is_mobile else 9.5}px sans-serif"
     btn_top = 7 if is_mobile else 8
 
-    left_group_w = btn_start_w + gap + btn_dest_w
+    x_start = 0
+    x_dest = x_start + btn_start_w + gap
+    x_reset = x_dest + btn_dest_w + section_gap
+    x_clear = x_reset + btn_reset_w + gap
+    header_total_w = x_clear + btn_clear_w
 
     show_all_bg = "#2ca25f" if show_all else "#ffffff"
     show_all_border = "#2ca25f" if show_all else "#b0bec5"
@@ -926,237 +930,235 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     show_all_w = 60 if is_mobile else 68
     show_all_h = 16 if is_mobile else 19
 
-    graphic_buttons = [
-        {
-            "type": "group",
-            "left": 10 if is_mobile else 35,
-            "top": btn_top,
-            "width": left_group_w,
-            "height": btn_h,
-            "z": 100,
-            "children": [
-                {
-                    "type": "group",
-                    "left": 0,
-                    "top": 0,
-                    "width": btn_start_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "toggle_origin",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {
-                                "width": btn_start_w,
-                                "height": btn_h,
-                                "r": 3 if is_mobile else 4
-                            },
-                            "style": {
-                                "fill": start_bg,
-                                "stroke": start_border,
-                                "lineWidth": 1.2,
-                                "shadowBlur": 2,
-                                "shadowColor": "rgba(0,0,0,0.1)",
-                                "shadowOffsetY": 1
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_origin"
+    header_bar = {
+        "type": "group",
+        "left": "center",
+        "top": btn_top,
+        "width": header_total_w,
+        "height": btn_h,
+        "z": 100,
+        "children": [
+            {
+                "type": "group",
+                "left": x_start,
+                "top": 0,
+                "width": btn_start_w,
+                "height": btn_h,
+                "cursor": "pointer",
+                "info": "toggle_origin",
+                "children": [
+                    {
+                        "type": "rect",
+                        "left": "center",
+                        "top": "middle",
+                        "shape": {
+                            "width": btn_start_w,
+                            "height": btn_h,
+                            "r": 3 if is_mobile else 4
                         },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": start_label,
-                                "fill": start_text_color,
-                                "font": btn_font
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_origin"
-                        }
-                    ]
-                },
-                {
-                    "type": "group",
-                    "left": btn_start_w + gap,
-                    "top": 0,
-                    "width": btn_dest_w,
-                    "height": btn_h,
-                    "cursor": "pointer",
-                    "info": "toggle_dest",
-                    "children": [
-                        {
-                            "type": "rect",
-                            "left": "center",
-                            "top": "middle",
-                            "shape": {
-                                "width": btn_dest_w,
-                                "height": btn_h,
-                                "r": 3 if is_mobile else 4
-                            },
-                            "style": {
-                                "fill": dest_bg,
-                                "stroke": dest_border,
-                                "lineWidth": 1.2,
-                                "shadowBlur": 2,
-                                "shadowColor": "rgba(0,0,0,0.1)",
-                                "shadowOffsetY": 1
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_dest"
+                        "style": {
+                            "fill": start_bg,
+                            "stroke": start_border,
+                            "lineWidth": 1.2,
+                            "shadowBlur": 2,
+                            "shadowColor": "rgba(0,0,0,0.1)",
+                            "shadowOffsetY": 1
                         },
-                        {
-                            "type": "text",
-                            "left": "center",
-                            "top": "middle",
-                            "style": {
-                                "text": dest_label,
-                                "fill": dest_text_color,
-                                "font": btn_font
-                            },
-                            "cursor": "pointer",
-                            "info": "toggle_dest"
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "type": "group",
-            "right": (10 if is_mobile else 35) + btn_clear_w + gap,
-            "top": btn_top,
-            "width": btn_reset_w,
-            "height": btn_h,
-            "z": 100,
-            "cursor": "pointer",
-            "info": "reset_zoom",
-            "children": [
-                {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {
-                        "width": btn_reset_w,
-                        "height": btn_h,
-                        "r": 3 if is_mobile else 4
+                        "cursor": "pointer",
+                        "info": "toggle_origin"
                     },
-                    "style": {
-                        "fill": "#ffffff",
-                        "stroke": "#1976d2",
-                        "lineWidth": 1.2,
-                        "shadowBlur": 2,
-                        "shadowColor": "rgba(0,0,0,0.1)",
-                        "shadowOffsetY": 1
+                    {
+                        "type": "text",
+                        "left": "center",
+                        "top": "middle",
+                        "style": {
+                            "text": start_label,
+                            "fill": start_text_color,
+                            "font": btn_font
+                        },
+                        "cursor": "pointer",
+                        "info": "toggle_origin"
+                    }
+                ]
+            },
+            {
+                "type": "group",
+                "left": x_dest,
+                "top": 0,
+                "width": btn_dest_w,
+                "height": btn_h,
+                "cursor": "pointer",
+                "info": "toggle_dest",
+                "children": [
+                    {
+                        "type": "rect",
+                        "left": "center",
+                        "top": "middle",
+                        "shape": {
+                            "width": btn_dest_w,
+                            "height": btn_h,
+                            "r": 3 if is_mobile else 4
+                        },
+                        "style": {
+                            "fill": dest_bg,
+                            "stroke": dest_border,
+                            "lineWidth": 1.2,
+                            "shadowBlur": 2,
+                            "shadowColor": "rgba(0,0,0,0.1)",
+                            "shadowOffsetY": 1
+                        },
+                        "cursor": "pointer",
+                        "info": "toggle_dest"
                     },
-                    "cursor": "pointer",
-                    "info": "reset_zoom"
+                    {
+                        "type": "text",
+                        "left": "center",
+                        "top": "middle",
+                        "style": {
+                            "text": dest_label,
+                            "fill": dest_text_color,
+                            "font": btn_font
+                        },
+                        "cursor": "pointer",
+                        "info": "toggle_dest"
+                    }
+                ]
+            },
+            {
+                "type": "group",
+                "left": x_reset,
+                "top": 0,
+                "width": btn_reset_w,
+                "height": btn_h,
+                "cursor": "pointer",
+                "info": "reset_zoom",
+                "children": [
+                    {
+                        "type": "rect",
+                        "left": "center",
+                        "top": "middle",
+                        "shape": {
+                            "width": btn_reset_w,
+                            "height": btn_h,
+                            "r": 3 if is_mobile else 4
+                        },
+                        "style": {
+                            "fill": "#ffffff",
+                            "stroke": "#1976d2",
+                            "lineWidth": 1.2,
+                            "shadowBlur": 2,
+                            "shadowColor": "rgba(0,0,0,0.1)",
+                            "shadowOffsetY": 1
+                        },
+                        "cursor": "pointer",
+                        "info": "reset_zoom"
+                    },
+                    {
+                        "type": "text",
+                        "left": "center",
+                        "top": "middle",
+                        "style": {
+                            "text": "Reset Zoom",
+                            "fill": "#1976d2",
+                            "font": btn_font
+                        },
+                        "cursor": "pointer",
+                        "info": "reset_zoom"
+                    }
+                ]
+            },
+            {
+                "type": "group",
+                "left": x_clear,
+                "top": 0,
+                "width": btn_clear_w,
+                "height": btn_h,
+                "cursor": "pointer",
+                "info": "clear_path",
+                "children": [
+                    {
+                        "type": "rect",
+                        "left": "center",
+                        "top": "middle",
+                        "shape": {
+                            "width": btn_clear_w,
+                            "height": btn_h,
+                            "r": 3 if is_mobile else 4
+                        },
+                        "style": {
+                            "fill": "#ffffff",
+                            "stroke": "#e63946",
+                            "lineWidth": 1.2,
+                            "shadowBlur": 2,
+                            "shadowColor": "rgba(0,0,0,0.1)",
+                            "shadowOffsetY": 1
+                        },
+                        "cursor": "pointer",
+                        "info": "clear_path"
+                    },
+                    {
+                        "type": "text",
+                        "left": "center",
+                        "top": "middle",
+                        "style": {
+                            "text": "Clear Path",
+                            "fill": "#e63946",
+                            "font": btn_font
+                        },
+                        "cursor": "pointer",
+                        "info": "clear_path"
+                    }
+                ]
+            }
+        ]
+    }
+
+    footer_bar = {
+        "type": "group",
+        "left": "center",
+        "bottom": 6,
+        "width": show_all_w,
+        "height": show_all_h,
+        "z": 100,
+        "cursor": "pointer",
+        "info": "toggle_show_all",
+        "children": [
+            {
+                "type": "rect",
+                "left": "center",
+                "top": "middle",
+                "shape": {
+                    "width": show_all_w,
+                    "height": show_all_h,
+                    "r": 3
                 },
-                {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": "Reset Zoom",
-                        "fill": "#1976d2",
-                        "font": btn_font
-                    },
-                    "cursor": "pointer",
-                    "info": "reset_zoom"
-                }
-            ]
-        },
-        {
-            "type": "group",
-            "right": 10 if is_mobile else 35,
-            "top": btn_top,
-            "width": btn_clear_w,
-            "height": btn_h,
-            "z": 100,
-            "cursor": "pointer",
-            "info": "clear_path",
-            "children": [
-                {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {
-                        "width": btn_clear_w,
-                        "height": btn_h,
-                        "r": 3 if is_mobile else 4
-                    },
-                    "style": {
-                        "fill": "#ffffff",
-                        "stroke": "#e63946",
-                        "lineWidth": 1.2,
-                        "shadowBlur": 2,
-                        "shadowColor": "rgba(0,0,0,0.1)",
-                        "shadowOffsetY": 1
-                    },
-                    "cursor": "pointer",
-                    "info": "clear_path"
+                "style": {
+                    "fill": show_all_bg,
+                    "stroke": show_all_border,
+                    "lineWidth": 1.2,
+                    "shadowBlur": 2,
+                    "shadowColor": "rgba(0,0,0,0.1)",
+                    "shadowOffsetY": 1
                 },
-                {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": "Clear Path",
-                        "fill": "#e63946",
-                        "font": btn_font
-                    },
-                    "cursor": "pointer",
-                    "info": "clear_path"
-                }
-            ]
-        },
-        {
-            "type": "group",
-            "left": "center" if is_mobile else None,
-            "right": None if is_mobile else 35,
-            "bottom": 6,
-            "width": show_all_w,
-            "height": show_all_h,
-            "z": 100,
-            "cursor": "pointer",
-            "info": "toggle_show_all",
-            "children": [
-                {
-                    "type": "rect",
-                    "left": "center",
-                    "top": "middle",
-                    "shape": {
-                        "width": show_all_w,
-                        "height": show_all_h,
-                        "r": 3
-                    },
-                    "style": {
-                        "fill": show_all_bg,
-                        "stroke": show_all_border,
-                        "lineWidth": 1.2,
-                        "shadowBlur": 2,
-                        "shadowColor": "rgba(0,0,0,0.1)",
-                        "shadowOffsetY": 1
-                    },
-                    "cursor": "pointer",
-                    "info": "toggle_show_all"
+                "cursor": "pointer",
+                "info": "toggle_show_all"
+            },
+            {
+                "type": "text",
+                "left": "center",
+                "top": "middle",
+                "style": {
+                    "text": show_all_label,
+                    "fill": show_all_text_color,
+                    "font": f"600 {7.5 if is_mobile else 8.5}px sans-serif"
                 },
-                {
-                    "type": "text",
-                    "left": "center",
-                    "top": "middle",
-                    "style": {
-                        "text": show_all_label,
-                        "fill": show_all_text_color,
-                        "font": f"600 {7.5 if is_mobile else 8.5}px sans-serif"
-                    },
-                    "cursor": "pointer",
-                    "info": "toggle_show_all"
-                }
-            ]
-        }
-    ]
+                "cursor": "pointer",
+                "info": "toggle_show_all"
+            }
+        ]
+    }
+
+    graphic_buttons = [header_bar, footer_bar]
 
     return {
         "backgroundColor": "#fbfaf6",
@@ -1177,8 +1179,8 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
                 "Gates",
                 "Gate names"
             ],
-            "bottom": 26 if is_mobile else 6,
-            "left": "center" if is_mobile else 35,
+            "bottom": 26,
+            "left": "center",
             "orient": "horizontal",
             "itemGap": 8 if is_mobile else 12,
             "itemWidth": 12 if is_mobile else 14,
@@ -1679,7 +1681,7 @@ def main():
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
         grid_top = 34 if is_mobile else 38
-        grid_bottom = 50 if is_mobile else 38
+        grid_bottom = 50
 
         filter_fn_body = f"""
             if (typeof window._mapZoomReset === 'undefined') {{
