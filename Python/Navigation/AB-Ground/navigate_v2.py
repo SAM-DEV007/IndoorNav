@@ -198,7 +198,7 @@ def build_static_map_data(graph: nx.Graph, positions, rooms):
         "max_y": max(all_y) + y_pad
     }
 
-    return base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds
+    return base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds, json.dumps(room_boxes, separators=(",", ":")), json.dumps(room_labels, separators=(",", ":"))
 
 
 def is_mobile_device():
@@ -531,7 +531,7 @@ def room_collides_with(parts_a, parts_b):
 
 
 def get_echarts_options(positions, route_coords, origin, destination, static_map_data):
-    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds = static_map_data
+    base_lines, room_boxes, room_labels, gate_boxes, gate_labels, bounds, _, _ = static_map_data
 
     is_mobile = is_mobile_device()
     show_all = st.session_state.get("show_all", False)
@@ -573,60 +573,11 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
     grid_top = 34 if is_mobile else 38
     grid_bottom = 50 if is_mobile else 38
 
-    if show_all:
-        visible_boxes = room_boxes
-        visible_labels = [r for r in room_labels if r.get("roomId") not in selected_ids]
-    else:
-        chart_w = st.session_state.get("chart_width") or (375.0 if is_mobile else 1150.0)
-        chart_h = st.session_state.get("chart_height") or (350.0 if is_mobile else 650.0)
-        grid_w = chart_w - 70.0
-        grid_h = chart_h - (grid_top + grid_bottom)
-        span_x = max_x - min_x
-        span_y = max_y - min_y
-        cur_min_x = min_x + span_x * (zoom_x_start / 100.0)
-        cur_max_x = min_x + span_x * (zoom_x_end / 100.0)
-        cur_min_y = min_y + span_y * (zoom_y_start / 100.0)
-        cur_max_y = min_y + span_y * (zoom_y_end / 100.0)
-
-        scale_x = grid_w / max(cur_max_x - cur_min_x, 1e-5)
-        scale_y = grid_h / max(cur_max_y - cur_min_y, 1e-5)
-
-        kept_parts = []
-        kept_ids = set()
-
-        if origin == "Custom" and st.session_state.get("custom_origin"):
-            m_pt = st.session_state.custom_origin["point"]
-            kept_parts.append(get_marker_parts_bbox(m_pt, "Custom Start", scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top))
-        elif str(origin).isdigit() and int(origin) in positions:
-            m_pt = positions[int(origin)]
-            m_name = wrap_label(str(name_lookup.get(int(origin), f"Room {origin}")))
-            kept_parts.append(get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_orig_size / 2.0, grid_top))
-
-        if str(destination).isdigit() and int(destination) in positions:
-            m_pt = positions[int(destination)]
-            m_name = wrap_label(str(name_lookup.get(int(destination), f"Room {destination}")))
-            kept_parts.append(get_marker_parts_bbox(m_pt, m_name, scale_x, scale_y, cur_min_x, cur_max_y, marker_dest_size / 2.0, grid_top))
-
-        box_r = room_size / 2.0
-        for r in room_boxes:
-            rid = r["roomId"]
-            if rid in selected_ids:
-                continue
-
-            r_parts = get_room_parts_bbox(r, scale_x, scale_y, cur_min_x, cur_max_y, box_r, grid_top)
-
-            collides = False
-            for kp in kept_parts:
-                if room_collides_with(r_parts, kp):
-                    collides = True
-                    break
-
-            if not collides:
-                kept_ids.add(rid)
-                kept_parts.append(r_parts)
-
-        visible_boxes = [r for r in room_boxes if r["roomId"] in kept_ids]
-        visible_labels = [r for r in room_labels if (r["roomId"] in kept_ids) and (r["roomId"] not in selected_ids)]
+    visible_boxes = room_boxes
+    visible_labels = [
+        r for r in room_labels
+        if r.get("roomId") not in selected_ids
+    ]
 
     visible_gate_labels = [g for g in gate_labels if g.get("roomId") not in selected_ids]
     visible_labels = [
@@ -1175,7 +1126,7 @@ def get_echarts_options(positions, route_coords, origin, destination, static_map
         ],
         "series": series,
         "animation": False
-    }
+    }, json.dumps(list(selected_ids), separators=(",", ":"))
 
 
 def compute_auto_zoom(coords, bounds, min_span=25.0, padding=0.25):
@@ -1549,7 +1500,7 @@ def main():
 
     with map_column:
         static_map_data = build_static_map_data(graph, positions, rooms)
-        _, all_boxes, all_labels, _, _, bounds = static_map_data
+        _, _, _, _, _, bounds, boxes_json, labels_json = static_map_data
 
         min_x = bounds["min_x"]
         max_x = bounds["max_x"]
@@ -1607,13 +1558,7 @@ def main():
         else:
             st.session_state.last_focus_key = None
 
-        options = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
-
-        selected_ids = []
-        if str(origin).isdigit():
-            selected_ids.append(int(origin))
-        if str(destination).isdigit():
-            selected_ids.append(int(destination))
+        options, selected_ids_json = get_echarts_options(positions, route_coords, origin, destination, static_map_data)
 
         is_mobile = is_mobile_device()
 
@@ -1627,10 +1572,7 @@ def main():
             m_name = wrap_label(str(rooms.loc[rooms["Room_ID"] == int(destination), "Room_Name"].values[0] if (rooms["Room_ID"] == int(destination)).any() else f"Room {destination}"))
             marker_items.append({"pt": positions[int(destination)], "name": m_name, "r": 4.5 if is_mobile else 6.5})
 
-        boxes_json = json.dumps(all_boxes)
-        labels_json = json.dumps(all_labels)
-        selected_ids_json = json.dumps(selected_ids)
-        marker_items_json = json.dumps(marker_items)
+        marker_items_json = json.dumps(marker_items, separators=(",", ":"))
         show_all_val = "true" if st.session_state.get("show_all", False) else "false"
 
         grid_top = 34 if is_mobile else 38
@@ -1918,7 +1860,9 @@ def main():
 
         events = {
             "finished": f"""function() {{
-                {filter_fn_body}
+                setTimeout(function() {{
+                    {filter_fn_body}
+                }}, 0);
             }}""",
             "datazoom": f"""function(p) {{
                 {filter_fn_body}
