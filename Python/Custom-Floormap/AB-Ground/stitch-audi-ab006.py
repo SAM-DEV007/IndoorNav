@@ -43,7 +43,7 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
 
 def ab009_correct_washrooms(path, offset_m=2.5):
     dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
-    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").copy()
 
     current_room = "AB009 A - Boys Restroom"
     if rooms_df[rooms_df["Room_ID"] == current_room].empty:
