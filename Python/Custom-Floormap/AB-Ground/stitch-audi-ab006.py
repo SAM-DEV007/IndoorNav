@@ -41,6 +41,52 @@ def add_door_coordinates(rooms_df, door_offset=1.1):
             rooms_df.loc[missing, door_y_col] = calculated_y.loc[missing]
     return rooms_df
 
+def ab009_correct_washrooms(path, offset_m=2.5):
+    dist_df = pd.read_csv(path / "pdr_distance_log.csv").set_index("Step")
+    rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").iloc[:-1].copy()
+
+    current_room = "AB009 A - Boys Restroom"
+    if rooms_df[rooms_df["Room_ID"] == current_room].empty:
+        return # No correction needed if the AB009 washroom is absent
+    if not rooms_df[rooms_df["Room_ID"] == "AB009 B - Boys Restroom"].empty:
+        return # No correction needed if both washrooms are already present
+
+    current_index = rooms_df.index[rooms_df["Room_ID"] == current_room][0]
+    original_step = rooms_df.loc[current_index, "Matched_Step"]
+    modified_step = original_step + 3
+
+    data = dist_df.loc[modified_step]
+    rx, ry = data["X_m"], data["Y_m"]
+    heading = np.deg2rad(data["Gyro_Heading_Unwrapped_deg"])
+
+    angle_shift = -np.pi / 2
+    door_x = rx + offset_m * np.cos(heading + angle_shift)
+    door_y = ry + offset_m * np.sin(heading + angle_shift)
+
+    new_washroom_row = {
+        "Room_ID": "AB009 B - Boys Restroom",
+        "Time_s": "MANUAL",
+        "Matched_Step": modified_step,
+        "Brightness": "MANUAL",
+        "Direction": "Right",
+        "Coords": str([(door_x, door_y)]),
+        "Trajectory_X": rx,
+        "Trajectory_Y": ry,
+    }
+
+    new_room_df = pd.DataFrame([new_washroom_row])
+    rooms_df = pd.concat(
+        [
+            rooms_df.iloc[: current_index + 1],
+            new_room_df,
+            rooms_df.iloc[current_index + 1 :],
+        ],
+        ignore_index=True,
+    )
+    rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
+
+    return rooms_df
+
 def correct_room_names(path):
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv")
 
@@ -48,9 +94,9 @@ def correct_room_names(path):
             return # No correction needed
 
     # Correct room names for consistency
-    rooms_df.loc[rooms_df['Room_ID'] == 'W-AB-009', 'Room_ID'] = 'AB009 Washroom'
+    rooms_df.loc[rooms_df['Room_ID'] == 'W-AB-009', 'Room_ID'] = 'AB009 A - Boys Restroom'
     rooms_df.loc[rooms_df['Room_ID'] == 'S-AB-008', 'Room_ID'] = 'AB008 Storage'
-    rooms_df.loc[rooms_df['Room_ID'] == 'CS-AB-007', 'Room_ID'] = 'AB007 Computer Science'
+    rooms_df.loc[rooms_df['Room_ID'] == 'CS-AB-007', 'Room_ID'] = 'AB007 Computer Studio - 1'
     rooms_df.loc[rooms_df['Room_ID'] == 'B-AB-006', 'Room_ID'] = 'AB006 Bank'
 
     rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
@@ -449,6 +495,7 @@ if __name__ == "__main__":
     new_save_dir.mkdir(parents=True, exist_ok=True)
 
     correct_room_names(new_path_dir)
+    ab009_correct_washrooms(new_path_dir)
 
     new_dist_df, new_rooms_df = process_data(new_path_dir, target_room_offset=2.50)
     save_data(new_dist_df, new_rooms_df, new_save_dir)
