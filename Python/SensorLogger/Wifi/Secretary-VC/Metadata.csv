@@ -1,0 +1,2 @@
+version,device name,recording epoch time,recording time,recording timezone,platform,appVersion,device id,sensors,sampleRateMs,standardisation,platform version
+3,SM-A146B,1791443841350,2026-10-08_07-17-21,Asia/Kolkata,android,1.67,f590a15b-5191-4a73-b075-91ad103fe657,WiFi|Annotation,40000|,false,35
