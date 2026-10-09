@@ -94,6 +94,12 @@ def add_gate_rooms(rooms_df, dist_df):
 
 def bgfg_correct_rooms(path):
     rooms_df = pd.read_csv(path / "pdr_rooms_log.csv").copy()
+
+    if rooms_df[rooms_df['Room_ID'] == 'Conference room'].empty:
+        return  # No correction needed if the Conference room is already "Conference room - Sangam"
+
+    rooms_df.loc[rooms_df['Room_ID'] == 'Conference room', 'Room_ID'] = "Conference room - Sangam"
+    rooms_df.to_csv(path / "pdr_rooms_log.csv", index=False)
     
     if rooms_df.loc[rooms_df["Room_ID"].eq("Reception"), "Direction"].eq("Right").all():
         return # No correction needed if the Reception room is already "Right"
@@ -412,7 +418,7 @@ if __name__ == "__main__":
     bgfg_save_dir.mkdir(parents=True, exist_ok=True)
     dlhb_save_dir.mkdir(parents=True, exist_ok=True)
 
-    bgfg_correct_rooms(bgfg_dir) # Correct the room coordinates (Reception only in the left)
+    bgfg_correct_rooms(bgfg_dir) # Correct the room coordinates (Reception only in the left & Conference room name)
     bgfg_dist_df, bgfg_rooms_df = process_data(bgfg_dir, reset_coords=True)
 
     dlhb_correct_rooms(dlhb_dir) # Correct the room coordinates (AB022 and Lift)

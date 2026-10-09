@@ -1,6 +1,6 @@
 Room_ID,Matched_Step,Direction,Trajectory_X_rot,Trajectory_Y_rot,Coords_X_rot,Coords_Y_rot,Door_X_rot,Door_Y_rot,Path_ID
 Main Audi AB012,12,Right,-15.91,50.39,-27.72,50.22,-26.67,50.56,BGFG
-Conference room,24,Left (Both),-14.18,44.22,-11.78,44.93,-12.83,44.62,BGFG
+Conference room - Sangam,24,Left (Both),-14.18,44.22,-11.78,44.93,-12.83,44.62,BGFG
 Discussion room,24,Right (Both),-14.18,44.22,-16.58,43.51,-15.48,43.51,BGFG
 Vice chancellor,39,Left (Both),-11.4,35.79,-9.03,36.59,-10.07,36.24,BGFG
 Vice president,39,Right (Both),-11.4,35.79,-13.77,35.0,-12.73,35.35,BGFG
