@@ -25,7 +25,7 @@ def edges(rooms_df, intersections_df):
         10: "Vice president",
         11: "Vice chancellor",
         12: "Discussion room",
-        13: "Conference room",
+        13: "Conference room - Sangam",
         14: "Main Audi AB012",
         15: "Back Gate",
 
@@ -47,27 +47,29 @@ def edges(rooms_df, intersections_df):
         30: "Lift",
 
         # Audi corridor
-        31: "Ab011 music room",
-        32: "Stair",
-        33: "Audi backdoor",
-        34: "Lift",
-        35: "Ab013 board room",
-        36: "Ab014 audi 2",
-        37: "Stairs",
-        38: "Ab015 dsw office",
+        31: "Audi door",
+        32: "Ab011 music room",
+        33: "Stair",
+        34: "Audi backdoor",
+        35: "Lift",
+        36: "Ab013 board room",
+        37: "Ab014 audi 2",
+        38: "Stairs",
+        39: "Ab015 dsw office",
 
         # Bank corridor
-        39: "AB-010",
-        40: "AB009 Washroom",
-        41: "AB008 Storage",
-        42: "AB007 Computer Science",
-        43: "AB006 Bank",
+        40: "AB-010",
+        41: "AB009 A - Boys Restroom",
+        42: "AB009 B - Boys Restroom",
+        43: "AB008 Storage",
+        44: "AB007 Computer Studio - 1",
+        45: "AB006 Bank",
 
         # Right corridor
-        44: "AB019 Cabin",
-        45: "AB018 B - Gents Washroom",
-        46: "AB018 A - Ladies Washroom",
-        47: "AB017 Cabin",
+        46: "AB019 Cabin",
+        47: "AB018 B - Gents Washroom",
+        48: "AB018 A - Ladies Washroom",
+        49: "AB017 Cabin",
     }
 
     connection_id = {
@@ -102,28 +104,30 @@ def edges(rooms_df, intersections_df):
         1026: "AB022LT",
 
         # Audi corridor
-        1027: "Junction_6",
-        1028: "AB011T",
-        1029: "ABST",
-        1030: "LT",
-        1031: "AB013BT",
-        1032: "AB014T",
-        1033: "Junction_5",
-        1034: "ST",
-        1035: "AB015T",
+        1027: "AudiDoorT",
+        1028: "Junction_6",
+        1029: "AB011T",
+        1030: "ABST",
+        1031: "LT",
+        1032: "AB013BT",
+        1033: "AB014T",
+        1034: "Junction_5",
+        1035: "ST",
+        1036: "AB015T",
 
         # Bank corridor
-        1036: "AB010T",
-        1037: "AB009T",
-        1038: "AB008T",
-        1039: "AB007T",
-        1040: "AB006T",
+        1037: "AB010T",
+        1038: "AB009AT",
+        1039: "AB009BT",
+        1040: "AB008T",
+        1041: "AB007T",
+        1042: "AB006T",
 
         # Right corridor
-        1041: "AB019T",
-        1042: "AB018BT",
-        1043: "AB018AT",
-        1044: "AB017T",
+        1043: "AB019T",
+        1044: "AB018BT",
+        1045: "AB018AT",
+        1046: "AB017T",
     }
 
     main_edges = [
@@ -163,27 +167,30 @@ def edges(rooms_df, intersections_df):
         (1027, 1028),
         (1028, 1029),
         (1029, 1030),
-        (1012, 1031),
-        (1031, 1032),
+        (1030, 1031),
+        (1012, 1032),
         (1032, 1033),
         (1033, 1034),
         (1034, 1035),
+        (1035, 1036),
 
         # Bank corridor
-        (1027, 1036),
-        (1036, 1037),
+        (1028, 1037),
         (1037, 1038),
         (1038, 1039),
         (1039, 1040),
-        (1040, 1017),
+        (1040, 1041),
+        (1041, 1042),
+        (1042, 1017),
 
         # Right corridor
-        (1023, 1041),
-        (1041, 1042),
-        (1042, 1043),
+        (1023, 1043),
         (1043, 1044),
-        (1044, 1033),
+        (1044, 1045),
+        (1045, 1046),
+        (1046, 1034),
     ]
+
 
     room_edges = [
         # Middle corridor
@@ -219,27 +226,29 @@ def edges(rooms_df, intersections_df):
         (1026, 30),
 
         # Audi corridor
-        (1028, 31),
+        (1027, 31),
         (1029, 32),
-        (1029, 33),
+        (1030, 33),
         (1030, 34),
         (1031, 35),
         (1032, 36),
-        (1034, 37),
+        (1033, 37),
         (1035, 38),
+        (1036, 39),
 
         # Bank corridor
-        (1036, 39),
         (1037, 40),
         (1038, 41),
         (1039, 42),
         (1040, 43),
-
-        # Right corridor
         (1041, 44),
         (1042, 45),
+
+        # Right corridor
         (1043, 46),
         (1044, 47),
+        (1045, 48),
+        (1046, 49),
     ]
 
     # Manual positions to deal with same names
@@ -252,9 +261,9 @@ def edges(rooms_df, intersections_df):
         23: rooms_df.iloc[12].values[3:5],
         28: rooms_df.iloc[25].values[3:5],
         30: rooms_df.iloc[26].values[3:5],
-        32: rooms_df.iloc[36].values[3:5],
-        34: rooms_df.iloc[34].values[3:5],
-        37: rooms_df.iloc[40].values[3:5],
+        33: rooms_df.iloc[36].values[3:5],
+        35: rooms_df.iloc[34].values[3:5],
+        38: rooms_df.iloc[41].values[3:5],
     }
 
     traj_manual_pos = {
@@ -271,9 +280,9 @@ def edges(rooms_df, intersections_df):
         23: rooms_df.iloc[12].values[1:3],
         28: rooms_df.iloc[25].values[1:3],
         30: rooms_df.iloc[26].values[1:3],
-        32: rooms_df.iloc[36].values[1:3],
-        34: rooms_df.iloc[34].values[1:3],
-        37: rooms_df.iloc[40].values[1:3],
+        33: rooms_df.iloc[36].values[1:3],
+        35: rooms_df.iloc[34].values[1:3],
+        38: rooms_df.iloc[41].values[1:3],
     }
 
     connection_pos = {

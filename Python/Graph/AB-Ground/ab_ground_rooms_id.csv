@@ -11,7 +11,7 @@ Room_ID,Room_Name
 10,Vice president
 11,Vice chancellor
 12,Discussion room
-13,Conference room
+13,Conference room - Sangam
 14,Main Audi AB012
 15,Back Gate
 16,Ab 001
@@ -29,20 +29,22 @@ Room_ID,Room_Name
 28,Staircase
 29,Ab 022 cabins
 30,Lift
-31,Ab011 music room
-32,Stair
-33,Audi backdoor
-34,Lift
-35,Ab013 board room
-36,Ab014 audi 2
-37,Stairs
-38,Ab015 dsw office
-39,AB-010
-40,AB009 Washroom
-41,AB008 Storage
-42,AB007 Computer Science
-43,AB006 Bank
-44,AB019 Cabin
-45,AB018 B - Gents Washroom
-46,AB018 A - Ladies Washroom
-47,AB017 Cabin
+31,Audi door
+32,Ab011 music room
+33,Stair
+34,Audi backdoor
+35,Lift
+36,Ab013 board room
+37,Ab014 audi 2
+38,Stairs
+39,Ab015 dsw office
+40,AB-010
+41,AB009 A - Boys Restroom
+42,AB009 B - Boys Restroom
+43,AB008 Storage
+44,AB007 Computer Studio - 1
+45,AB006 Bank
+46,AB019 Cabin
+47,AB018 B - Gents Washroom
+48,AB018 A - Ladies Washroom
+49,AB017 Cabin
