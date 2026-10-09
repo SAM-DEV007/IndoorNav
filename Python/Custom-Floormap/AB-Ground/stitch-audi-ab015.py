@@ -69,6 +69,18 @@ def process_data(path):
     rooms_df["Coords_X"] = np.round(x, 2)
     rooms_df["Coords_Y"] = np.round(y, 2)
 
+    # Swap stair and audi backdoor room names
+    stair_mask = rooms_df["Room_ID"].str.strip().str.lower() == "stair"
+    backdoor_mask = rooms_df["Room_ID"].str.strip().str.lower() == "audi backdoor"
+
+    if stair_mask.any() and backdoor_mask.any():
+        s_idx = rooms_df[stair_mask].index[0]
+        b_idx = rooms_df[backdoor_mask].index[0]
+        stair_name = rooms_df.loc[s_idx, "Room_ID"]
+        backdoor_name = rooms_df.loc[b_idx, "Room_ID"]
+        rooms_df.loc[s_idx, "Room_ID"] = backdoor_name
+        rooms_df.loc[b_idx, "Room_ID"] = stair_name
+
     rooms_df.drop(columns=["Coords"], inplace=True)
 
     return dist_df, rooms_df
