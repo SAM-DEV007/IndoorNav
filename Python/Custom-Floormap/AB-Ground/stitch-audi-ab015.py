@@ -69,18 +69,6 @@ def process_data(path):
     rooms_df["Coords_X"] = np.round(x, 2)
     rooms_df["Coords_Y"] = np.round(y, 2)
 
-    # Swap stair and audi backdoor room names
-    stair_mask = rooms_df["Room_ID"].str.strip().str.lower() == "stair"
-    backdoor_mask = rooms_df["Room_ID"].str.strip().str.lower() == "audi backdoor"
-
-    if stair_mask.any() and backdoor_mask.any():
-        s_idx = rooms_df[stair_mask].index[0]
-        b_idx = rooms_df[backdoor_mask].index[0]
-        stair_name = rooms_df.loc[s_idx, "Room_ID"]
-        backdoor_name = rooms_df.loc[b_idx, "Room_ID"]
-        rooms_df.loc[s_idx, "Room_ID"] = backdoor_name
-        rooms_df.loc[b_idx, "Room_ID"] = stair_name
-
     rooms_df.drop(columns=["Coords"], inplace=True)
 
     return dist_df, rooms_df
@@ -317,8 +305,6 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
         r_name = str(row["Room_ID"]).lower()
         r_idx = row.name
 
-        if "audi door" in r_name:
-            return False
         if "discussion" in r_name:
             return False
         if r_idx == first_rt_idx:
@@ -327,21 +313,6 @@ def generate_unified_floorplan(unified_dist_path, unified_rooms_path, new_dist_d
             return False
 
         return True
-
-    # unified_rooms = unified_rooms[~unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False)].copy()
-    main_audi_mask = unified_rooms["Room_ID"].str.contains(r"main audi ab012", case=False, na=False)
-    audi_door_mask = new_rooms["Room_ID"].str.contains(r"audi door", case=False, na=False)
-    cols = ["Coords_X_rot", "Coords_Y_rot"]
-    room_offset = (
-        new_rooms.loc[audi_door_mask, cols].iloc[0].to_numpy(float)
-        - unified_rooms.loc[main_audi_mask, cols].iloc[0].to_numpy(float)
-    )
-    unified_rooms.loc[main_audi_mask, cols] = new_rooms.loc[audi_door_mask, cols].values
-
-    door_cols = ["Door_X_rot", "Door_Y_rot"]
-    unified_rooms.loc[main_audi_mask, door_cols] = (
-        unified_rooms.loc[main_audi_mask, door_cols].to_numpy(float) + room_offset
-    )
 
     new_rooms_clean = new_rooms[new_rooms.apply(filter_new_rooms, axis=1)].copy()
     unified_rooms_new = pd.concat([unified_rooms, new_rooms_clean], ignore_index=True)
